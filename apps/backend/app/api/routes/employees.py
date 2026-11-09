@@ -201,6 +201,35 @@ def create_employee(
             detail="User not found",
         )
 
+    existing_by_user = (
+        db.query(Employee)
+        .filter(Employee.user_id == payload.user_id)
+        .first()
+    )
+
+    if existing_by_user is not None and existing_by_user.email.endswith("@local.invalid"):
+        duplicate_other = (
+            db.query(Employee)
+            .filter(
+                Employee.id != existing_by_user.id,
+                (Employee.employee_code == payload.employee_code)
+                | (Employee.email == payload.email),
+            )
+            .first()
+        )
+        if duplicate_other is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Employee code or email already exists",
+            )
+        existing_by_user.employee_code = payload.employee_code
+        existing_by_user.full_name = payload.full_name
+        existing_by_user.email = payload.email
+        existing_by_user.department = payload.department
+        db.commit()
+        db.refresh(existing_by_user)
+        return existing_by_user
+
     existing_employee = (
         db.query(Employee)
         .filter(

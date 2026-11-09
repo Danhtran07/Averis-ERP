@@ -44,6 +44,19 @@ export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
   return response.data;
 }
 
+export interface DemoSeedResponse {
+  seeded: boolean;
+  admin_credentials: { username: string; password: string };
+  employee_credentials: { username: string; password: string };
+  employees_total: number;
+  attendance_records_created: number;
+}
+
+export async function seedDemoData(): Promise<DemoSeedResponse> {
+  const response = await apiClient.post<DemoSeedResponse>("/api/auth/demo-seed");
+  return response.data;
+}
+
 export async function uploadProfileAvatar(file: File): Promise<Profile> {
   const formData = new FormData();
   formData.append("file", file);

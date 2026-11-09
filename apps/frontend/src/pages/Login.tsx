@@ -2,7 +2,7 @@ import {
   FormEvent,
   useState,
 } from "react";
-import { Check, LockKeyhole, CircleAlert } from "lucide-react";
+import { Check, LockKeyhole, CircleAlert, Sparkles, ShieldCheck, UserRound } from "lucide-react";
 
 import {
   useNavigate,
@@ -10,6 +10,7 @@ import {
 
 import {
   login,
+  seedDemoData,
 } from "../api/auth.api";
 
 import {
@@ -31,6 +32,37 @@ export default function Login() {
 
   const [error, setError] =
     useState("");
+  const [seeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState("");
+
+  async function handleSeedDemo(autoFillRole?: "ADMIN" | "EMPLOYEE") {
+    if (seeding || loading) return;
+    setError("");
+    setSeedMessage("");
+    setSeeding(true);
+    try {
+      const result = await seedDemoData();
+      if (autoFillRole === "ADMIN") {
+        setUsername(result.admin_credentials.username);
+        setPassword(result.admin_credentials.password);
+        setSeedMessage("Demo data ready! Admin credentials filled — click Sign in.");
+      } else if (autoFillRole === "EMPLOYEE") {
+        setUsername(result.employee_credentials.username);
+        setPassword(result.employee_credentials.password);
+        setSeedMessage("Demo data ready! Employee credentials filled — click Sign in.");
+      } else {
+        setUsername(result.admin_credentials.username);
+        setPassword(result.admin_credentials.password);
+        setSeedMessage(
+          `Initialized ${result.employees_total} demo employees, shifts, schedules & attendance logs!`
+        );
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to initialize demo data."));
+    } finally {
+      setSeeding(false);
+    }
+  }
 
 
   /* ==========================================================
@@ -126,6 +158,19 @@ export default function Login() {
       <section
         className="
           hidden
+          lg:flex
+          lg:min-h-screen
+          lg:w-1/2
+          lg:flex-col
+          lg:justify-between
+          relative
+          overflow-hidden
+          bg-gradient-to-br
+          from-blue-600
+          via-blue-700
+          to-indigo-900
+          p-12
+          text-white
         "
       >
 
@@ -352,6 +397,8 @@ export default function Login() {
         className="
           flex
           min-h-screen
+          w-full
+          lg:w-1/2
           items-center
           justify-center
           px-5
@@ -715,6 +762,56 @@ export default function Login() {
 
             </form>
 
+
+            {/* =================================================
+                DEMO QUICK ACCESS
+            ================================================= */}
+
+            <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-700">
+                  <Sparkles size={14} />
+                  Live Demo Quick Access
+                </span>
+                <button
+                  type="button"
+                  disabled={seeding || loading}
+                  onClick={() => void handleSeedDemo()}
+                  className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs transition hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {seeding ? "Initializing..." : "1-Click Seed Demo Data"}
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-600">
+                Populate realistic enterprise employees, shifts, weekly schedules, and 14-day attendance logs:
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={seeding || loading}
+                  onClick={() => void handleSeedDemo("ADMIN")}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  <ShieldCheck size={14} className="text-blue-600" />
+                  Admin (admin)
+                </button>
+                <button
+                  type="button"
+                  disabled={seeding || loading}
+                  onClick={() => void handleSeedDemo("EMPLOYEE")}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  <UserRound size={14} className="text-emerald-600" />
+                  Employee (emp_khoa)
+                </button>
+              </div>
+              {seedMessage && (
+                <p className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                  <Check size={14} />
+                  {seedMessage}
+                </p>
+              )}
+            </div>
 
             {/* =================================================
                 FOOTER

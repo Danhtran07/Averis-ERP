@@ -19,6 +19,7 @@ import {
   updateEmployee,
 } from "../api/employee.api";
 import { createLivenessSession } from "../api/recognition.api";
+import { createUser, getUsers } from "../api/user.api";
 
 import {
   getApiErrorMessage,
@@ -35,6 +36,7 @@ import type {
   EmployeeCreate,
   EmployeeUpdate,
 } from "../types/employee";
+import type { UserResponse } from "../types/user";
 
 
 /* ============================================================
@@ -87,6 +89,12 @@ export default function Employees() {
     employees,
     setEmployees,
   ] = useState<Employee[]>([]);
+  const [users, setUsers] = useState<UserResponse[]>([]);
+  const [userLinkMode, setUserLinkMode] = useState<"existing" | "new">("existing");
+  const [newAccountForm, setNewAccountForm] = useState({
+    username: "",
+    password: "",
+  });
 
   const [
     loading,
@@ -188,10 +196,13 @@ export default function Employees() {
       setLoading(true);
       setLoadError("");
 
-      const data =
-        await getEmployees();
+      const [data, userList] = await Promise.all([
+        getEmployees(),
+        getUsers().catch(() => [] as UserResponse[]),
+      ]);
 
       setEmployees(data);
+      setUsers(userList);
 
     } catch (error) {
 
@@ -402,12 +413,12 @@ export default function Employees() {
 
     let userId: number | undefined;
 
-    if (!editingEmployee) {
+    if (!editingEmployee && userLinkMode === "existing") {
 
       if (!form.user_id.trim()) {
 
         setFormError(
-          "User ID is required."
+          "Please select a User account or choose 'Create new login account'."
         );
 
         return;
@@ -425,6 +436,13 @@ export default function Employees() {
           "User ID must be a valid number."
         );
 
+        return;
+      }
+    } else if (!editingEmployee && userLinkMode === "new") {
+      if (!newAccountForm.username.trim() || newAccountForm.password.length < 6) {
+        setFormError(
+          "New login username is required and password must be at least 6 characters."
+        );
         return;
       }
     }
@@ -491,6 +509,15 @@ export default function Employees() {
       ====================================================== */
 
       else {
+        if (userLinkMode === "new") {
+          const createdUser = await createUser({
+            username: newAccountForm.username.trim(),
+            password: newAccountForm.password,
+            role: "EMPLOYEE",
+          });
+          userId = createdUser.id;
+          setUsers((prev) => [...prev, createdUser]);
+        }
 
         const data: EmployeeCreate = {
 
@@ -518,12 +545,12 @@ export default function Employees() {
           );
 
 
-        setEmployees(
-          (current) => [
-            ...current,
-            created,
-          ]
+        setEmployees((current) =>
+          current.some((item) => item.id === created.id)
+            ? current.map((item) => (item.id === created.id ? created : item))
+            : [...current, created]
         );
+        setNewAccountForm({ username: "", password: "" });
 
         closeModal();
         startFaceEnrollment(created.id);
@@ -2260,48 +2287,121 @@ export default function Employees() {
                 </FormField>
 
 
-                {/* User ID - CREATE ONLY */}
+                {/* User Account - CREATE ONLY */}
 
                 {!editingEmployee && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-700">
+                        User Login Account <span className="text-red-500">*</span>
+                      </span>
+                      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setUserLinkMode("existing")}
+                          className={`rounded-md px-2.5 py-1 transition ${
+                            userLinkMode === "existing"
+                              ? "bg-blue-600 text-white"
+                              : "text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          Select existing user
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUserLinkMode("new")}
+                          className={`rounded-md px-2.5 py-1 transition ${
+                            userLinkMode === "new"
+                              ? "bg-blue-600 text-white"
+                              : "text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          + Create new login
+                        </button>
+                      </div>
+                    </div>
 
-                  <FormField
-                    label="User ID"
-                    required
-                  >
-
-                    <input
-                      type="number"
-                      min="1"
-                      value={
-                        form.user_id
-                      }
-                      onChange={(event) =>
-                        handleChange(
-                          "user_id",
-                          event.target.value
-                        )
-                      }
-                      placeholder="2"
-                      required
-                      disabled={saving}
-                      className={inputClassName}
-                    />
-
-                    <p
-                      className="
-                        mt-1.5
-                        text-[11px]
-                        leading-5
-                        text-slate-400
-                      "
-                    >
-                      Enter the existing user ID
-                      that should be associated
-                      with this employee.
-                    </p>
-
-                  </FormField>
-
+                    {userLinkMode === "existing" ? (
+                      <div>
+                        <select
+                          value={form.user_id}
+                          onChange={(event) =>
+                            handleChange("user_id", event.target.value)
+                          }
+                          required
+                          disabled={saving}
+                          className={inputClassName}
+                        >
+                          <option value="">-- Select User Account --</option>
+                          {users.map((u) => {
+                            const existingEmp = employees.find(
+                              (e) => e.user_id === u.id
+                            );
+                            const isPlaceholder =
+                              existingEmp?.email?.endsWith("@local.invalid");
+                            return (
+                              <option
+                                key={u.id}
+                                value={u.id}
+                                disabled={Boolean(existingEmp && !isPlaceholder)}
+                              >
+                                #{u.id} · {u.username} ({u.role})
+                                {existingEmp
+                                  ? isPlaceholder
+                                    ? " — Ready to configure"
+                                    : ` — Linked to ${existingEmp.full_name}`
+                                  : " — Unlinked"}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <p className="mt-1.5 text-[11px] leading-5 text-slate-400">
+                          Choose an existing user account or switch to &ldquo;+ Create new login&rdquo; to generate credentials automatically.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-bold text-slate-600">
+                            Login Username *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="emp_nguyen"
+                            value={newAccountForm.username}
+                            onChange={(e) =>
+                              setNewAccountForm((prev) => ({
+                                ...prev,
+                                username: e.target.value,
+                              }))
+                            }
+                            required
+                            disabled={saving}
+                            className={inputClassName}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-bold text-slate-600">
+                            Login Password (min 6 chars) *
+                          </label>
+                          <input
+                            type="password"
+                            placeholder="••••••••"
+                            value={newAccountForm.password}
+                            onChange={(e) =>
+                              setNewAccountForm((prev) => ({
+                                ...prev,
+                                password: e.target.value,
+                              }))
+                            }
+                            required
+                            disabled={saving}
+                            className={inputClassName}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
               </div>

@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { CalendarDays, Clock3, MoonStar, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, MoonStar, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 import ErrorState from "../components/ErrorState";
 import LoadingState from "../components/LoadingState";
 import { getApiErrorMessage } from "../api/error";
-import { createShift, deactivateShift, getSchedules, getShifts } from "../api/schedule.api";
+import { getEmployees } from "../api/employee.api";
+import {
+  assignSchedule,
+  createSchedule,
+  createShift,
+  deactivateShift,
+  getSchedules,
+  getShifts,
+} from "../api/schedule.api";
+import type { Employee } from "../types/employee";
 import type { Shift, ShiftPayload, WorkSchedule } from "../types/schedule";
 import { SHIFT_TEMPLATES, type ShiftTemplateId } from "../utils/shiftTemplates";
 
@@ -37,6 +46,7 @@ export default function Schedules() {
 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createError, setCreateError] = useState("");
@@ -52,16 +62,81 @@ export default function Schedules() {
     description: "",
   });
 
+  // Weekly schedule creation state
+  const [scheduleForm, setScheduleForm] = useState<{
+    name: string;
+    code: string;
+    description: string;
+    dayShifts: Record<number, string>;
+  }>({
+    name: "Standard Office Week",
+    code: "STD-WEEK",
+    description: "Monday to Friday standard office shift",
+    dayShifts: {
+      1: "",
+      2: "",
+      3: "",
+      4: "",
+      5: "",
+      6: "",
+      7: "",
+    },
+  });
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
+  const [scheduleSuccess, setScheduleSuccess] = useState("");
+
+  // Schedule assignment state
+  const [assignForm, setAssignForm] = useState({
+    employee_id: "",
+    schedule_id: "",
+    effective_from: new Date().toISOString().slice(0, 10),
+    effective_to: "",
+  });
+  const [savingAssign, setSavingAssign] = useState(false);
+  const [assignError, setAssignError] = useState("");
+  const [assignSuccess, setAssignSuccess] = useState("");
+
   async function loadWorkConfig() {
     try {
       setLoading(true);
       setError("");
-      const [shiftData, scheduleData] = await Promise.all([
+      const [shiftData, scheduleData, employeeData] = await Promise.all([
         getShifts(),
         getSchedules(),
+        getEmployees().catch(() => [] as Employee[]),
       ]);
       setShifts(shiftData);
       setSchedules(scheduleData);
+      setEmployees(employeeData);
+
+      const defaultShift = shiftData.find((s) => s.is_active);
+      if (defaultShift) {
+        setScheduleForm((prev) => ({
+          ...prev,
+          dayShifts: {
+            1: prev.dayShifts[1] || String(defaultShift.id),
+            2: prev.dayShifts[2] || String(defaultShift.id),
+            3: prev.dayShifts[3] || String(defaultShift.id),
+            4: prev.dayShifts[4] || String(defaultShift.id),
+            5: prev.dayShifts[5] || String(defaultShift.id),
+            6: prev.dayShifts[6] || "",
+            7: prev.dayShifts[7] || "",
+          },
+        }));
+      }
+      if (employeeData.length > 0) {
+        setAssignForm((prev) => ({
+          ...prev,
+          employee_id: prev.employee_id || String(employeeData[0].id),
+        }));
+      }
+      if (scheduleData.length > 0) {
+        setAssignForm((prev) => ({
+          ...prev,
+          schedule_id: prev.schedule_id || String(scheduleData[0].id),
+        }));
+      }
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to load shifts and schedules."));
     } finally {
@@ -134,6 +209,72 @@ export default function Schedules() {
       setShiftActionError(getApiErrorMessage(err, "Unable to remove this shift."));
     } finally {
       setUpdatingShiftId(null);
+    }
+  }
+
+  async function handleCreateSchedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setScheduleError("");
+    setScheduleSuccess("");
+    setSavingSchedule(true);
+    try {
+      const rules = [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({
+        day_of_week: dayOfWeek,
+        shift_id: scheduleForm.dayShifts[dayOfWeek]
+          ? Number(scheduleForm.dayShifts[dayOfWeek])
+          : null,
+      }));
+      const created = await createSchedule({
+        name: scheduleForm.name.trim(),
+        code: scheduleForm.code.trim(),
+        description: scheduleForm.description.trim() || null,
+        is_active: true,
+        rules,
+      });
+      setSchedules((current) => [...current, created]);
+      setAssignForm((prev) => ({
+        ...prev,
+        schedule_id: prev.schedule_id || String(created.id),
+      }));
+      setScheduleSuccess(`Created weekly schedule "${created.name}" (${created.code}).`);
+      setScheduleForm((prev) => ({
+        ...prev,
+        name: "",
+        code: "",
+        description: "",
+      }));
+    } catch (err) {
+      setScheduleError(getApiErrorMessage(err, "Unable to create weekly schedule."));
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  async function handleAssignSchedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAssignError("");
+    setAssignSuccess("");
+    if (!assignForm.employee_id || !assignForm.schedule_id) {
+      setAssignError("Please select both an employee and a weekly schedule.");
+      return;
+    }
+    setSavingAssign(true);
+    try {
+      const assigned = await assignSchedule({
+        employee_id: Number(assignForm.employee_id),
+        schedule_id: Number(assignForm.schedule_id),
+        effective_from: assignForm.effective_from,
+        effective_to: assignForm.effective_to || null,
+      });
+      const emp = employees.find((e) => e.id === assigned.employee_id);
+      const sched = schedules.find((s) => s.id === assigned.schedule_id);
+      setAssignSuccess(
+        `Assigned "${sched?.name ?? `#${assigned.schedule_id}`}" to ${emp?.full_name ?? `Employee #${assigned.employee_id}`} starting ${assigned.effective_from}.`
+      );
+    } catch (err) {
+      setAssignError(getApiErrorMessage(err, "Unable to assign schedule to employee."));
+    } finally {
+      setSavingAssign(false);
     }
   }
 
@@ -311,6 +452,262 @@ export default function Schedules() {
         </>
       ) : (
         <>
+          <div className="grid gap-5 xl:grid-cols-2">
+            {/* Create Weekly Schedule Form */}
+            <form
+              onSubmit={handleCreateSchedule}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                    <CalendarDays size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-slate-900">Create weekly schedule</h2>
+                    <p className="text-sm text-slate-500">
+                      Map shifts to Monday–Sunday to build a reusable work pattern.
+                    </p>
+                  </div>
+                </div>
+                {shifts.some((s) => s.is_active) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const activeShift = shifts.find((s) => s.is_active);
+                      if (!activeShift) return;
+                      setScheduleForm((prev) => ({
+                        ...prev,
+                        dayShifts: {
+                          1: String(activeShift.id),
+                          2: String(activeShift.id),
+                          3: String(activeShift.id),
+                          4: String(activeShift.id),
+                          5: String(activeShift.id),
+                          6: "",
+                          7: "",
+                        },
+                      }));
+                    }}
+                    className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                  >
+                    Auto-fill Mon–Fri
+                  </button>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Schedule name
+                  <input
+                    required
+                    maxLength={100}
+                    placeholder="Standard Office Week"
+                    value={scheduleForm.name}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, name: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold text-slate-700">
+                  Schedule code
+                  <input
+                    required
+                    maxLength={50}
+                    placeholder="STD-WEEK"
+                    value={scheduleForm.code}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, code: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                  Description (optional)
+                  <input
+                    placeholder="Monday to Friday 08:00 - 17:00"
+                    value={scheduleForm.description}
+                    onChange={(e) =>
+                      setScheduleForm({ ...scheduleForm, description: e.target.value })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Weekly Shift Mapping (Mon – Sun)
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {days.map((dayName, idx) => {
+                    const dayNum = idx + 1;
+                    return (
+                      <label
+                        key={dayName}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs"
+                      >
+                        <span>{dayName}</span>
+                        <select
+                          value={scheduleForm.dayShifts[dayNum] ?? ""}
+                          onChange={(e) =>
+                            setScheduleForm((prev) => ({
+                              ...prev,
+                              dayShifts: {
+                                ...prev.dayShifts,
+                                [dayNum]: e.target.value,
+                              },
+                            }))
+                          }
+                          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-800"
+                        >
+                          <option value="">Day off</option>
+                          {shifts
+                            .filter((s) => s.is_active)
+                            .map((shift) => (
+                              <option key={shift.id} value={shift.id}>
+                                {shift.name} ({formatTime(shift.start_time)}–
+                                {formatTime(shift.end_time)})
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {scheduleError && (
+                <p role="alert" className="mt-3 text-sm text-rose-600">
+                  {scheduleError}
+                </p>
+              )}
+              {scheduleSuccess && (
+                <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                  <CheckCircle2 size={16} />
+                  {scheduleSuccess}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={savingSchedule}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+              >
+                <Plus size={16} />
+                {savingSchedule ? "Creating schedule..." : "Create weekly schedule"}
+              </button>
+            </form>
+
+            {/* Assign Schedule to Employee Form */}
+            <form
+              onSubmit={handleAssignSchedule}
+              className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <UserCheck size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-slate-900">Assign schedule to employee</h2>
+                    <p className="text-sm text-slate-500">
+                      Link an employee to a weekly schedule so Kiosk check-in evaluates their shift automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                    Employee
+                    <select
+                      required
+                      value={assignForm.employee_id}
+                      onChange={(e) =>
+                        setAssignForm({ ...assignForm, employee_id: e.target.value })
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                    >
+                      <option value="">-- Select employee --</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.full_name} ({emp.employee_code}
+                          {emp.department ? ` · ${emp.department}` : ""})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                    Weekly schedule
+                    <select
+                      required
+                      value={assignForm.schedule_id}
+                      onChange={(e) =>
+                        setAssignForm({ ...assignForm, schedule_id: e.target.value })
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                    >
+                      <option value="">-- Select weekly schedule --</option>
+                      {schedules
+                        .filter((s) => s.is_active)
+                        .map((sched) => (
+                          <option key={sched.id} value={sched.id}>
+                            {sched.name} ({sched.code})
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-slate-700">
+                    Effective from
+                    <input
+                      required
+                      type="date"
+                      value={assignForm.effective_from}
+                      onChange={(e) =>
+                        setAssignForm({ ...assignForm, effective_from: e.target.value })
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                    />
+                  </label>
+
+                  <label className="text-sm font-semibold text-slate-700">
+                    Effective to (optional)
+                    <input
+                      type="date"
+                      value={assignForm.effective_to}
+                      onChange={(e) =>
+                        setAssignForm({ ...assignForm, effective_to: e.target.value })
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                    />
+                  </label>
+                </div>
+
+                {assignError && (
+                  <p role="alert" className="mt-3 text-sm text-rose-600">
+                    {assignError}
+                  </p>
+                )}
+                {assignSuccess && (
+                  <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                    <CheckCircle2 size={16} />
+                    {assignSuccess}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4 pt-2">
+                <button
+                  type="submit"
+                  disabled={savingAssign || employees.length === 0 || schedules.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <UserCheck size={16} />
+                  {savingAssign ? "Assigning..." : "Assign schedule to employee"}
+                </button>
+              </div>
+            </form>
+          </div>
+
           <div className="grid gap-5 xl:grid-cols-2">
             {schedules.map((schedule) => {
               const rules = new Map(
