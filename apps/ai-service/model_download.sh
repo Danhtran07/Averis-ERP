@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Face Biometrics API — Model Download ==="
+echo "=== Averis AI Biometrics Service — Model Download ==="
 echo ""
 
 cd "$(dirname "$0")/backend"

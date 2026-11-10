@@ -251,7 +251,7 @@ export default function Login() {
                 shadow-lg
               "
             >
-              F
+              A
             </div>
 
             <div>
@@ -264,7 +264,7 @@ export default function Login() {
                   text-white
                 "
               >
-                FaceAttend
+                Averis
               </h1>
 
               <p
@@ -277,7 +277,7 @@ export default function Login() {
                   text-blue-100
                 "
               >
-                Attendance System
+                F&amp;B Enterprise &amp; Biometric SaaS
               </p>
 
             </div>
@@ -301,7 +301,7 @@ export default function Login() {
                 text-blue-200
               "
             >
-              AI-Powered Attendance
+              AI Biometrics for F&amp;B &amp; Retail Chains
             </div>
 
             <h2
@@ -315,9 +315,9 @@ export default function Login() {
                 xl:text-5xl
               "
             >
-              Smart attendance
+              Touchless check-in
               <br />
-              with facial recognition.
+              for F&amp;B operations.
             </h2>
 
             <p
@@ -330,9 +330,8 @@ export default function Login() {
                 xl:text-base
               "
             >
-              Manage employees and attendance
-              efficiently with FaceAttend AI.
-              Fast, accurate and secure.
+              Giải pháp quản trị nhân sự, phân ca xoay linh hoạt và điểm danh
+              khuôn mặt AI chuyên biệt cho chuỗi Nhà hàng, Cà phê &amp; F&amp;B.
             </p>
 
           </div>
@@ -350,18 +349,18 @@ export default function Login() {
           >
 
             <Feature
-              title="Fast and accurate attendance"
-              description="Automated attendance using facial recognition."
+              title="Touchless POS Kiosk Check-in (1.2s)"
+              description="Điểm danh không chạm cho Bếp & Barista khi tay ướt hoặc đeo găng tay."
             />
 
             <Feature
-              title="Real-time employee management"
-              description="Manage employee information from one place."
+              title="Rotating, Split & Overnight F&B Shifts"
+              description="Tự động nhận diện Ca Sáng, Ca Chiều, Ca Đêm qua ngày & Ca Gãy cao điểm."
             />
 
             <Feature
-              title="Secure authentication"
-              description="Protected access with token-based authentication."
+              title="Hourly Timesheet & F&B Payroll Export"
+              description="Tính giờ công thực tế, phụ cấp OT x1.5 và xuất bảng lương Excel/CSV."
             />
 
           </div>
@@ -381,7 +380,7 @@ export default function Login() {
               text-blue-200
             "
           >
-            FaceAttend AI · Attendance Management
+            Averis AI · Enterprise Management & Biometric Attendance
           </div>
 
         </div>
@@ -443,7 +442,7 @@ export default function Login() {
                 shadow-lg
               "
             >
-              F
+              A
             </div>
 
             <div
@@ -454,7 +453,7 @@ export default function Login() {
                 text-slate-900
               "
             >
-              FaceAttend
+              Averis
             </div>
 
             <div
@@ -467,7 +466,7 @@ export default function Login() {
                 text-slate-400
               "
             >
-              Attendance System
+              Enterprise & Biometric Attendance
             </div>
 
           </div>
@@ -512,7 +511,7 @@ export default function Login() {
                   text-slate-500
                 "
               >
-                Sign in to your FaceAttend
+                Sign in to your Averis
                 account to continue.
               </p>
 
@@ -793,7 +792,7 @@ export default function Login() {
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
                 >
                   <ShieldCheck size={14} className="text-blue-600" />
-                  Admin (admin)
+                  Demo Admin
                 </button>
                 <button
                   type="button"
@@ -802,7 +801,7 @@ export default function Login() {
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
                 >
                   <UserRound size={14} className="text-emerald-600" />
-                  Employee (emp_khoa)
+                  Demo Employee
                 </button>
               </div>
               {seedMessage && (
@@ -829,7 +828,7 @@ export default function Login() {
                 text-slate-400
               "
             >
-              FaceAttend AI · Attendance Management
+              Averis AI · Enterprise & Biometric Attendance
             </div>
 
           </div>

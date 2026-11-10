@@ -83,7 +83,8 @@ def seed_demo_data(
     """Idempotently initialize demo accounts, employees, shifts, schedules, and attendance logs."""
     Base.metadata.create_all(bind=db.get_bind(), checkfirst=True)
 
-    # 1. Admin account
+    # 1. Admin demo account (preserve pre-existing admin password if customized)
+    demo_admin_username = "admin"
     admin_user = db.query(User).filter(User.username == "admin").first()
     if admin_user is None:
         admin_user = User(
@@ -93,9 +94,25 @@ def seed_demo_data(
         )
         db.add(admin_user)
         db.flush()
+    elif not verify_password("admin123", admin_user.password_hash):
+        demo_admin_username = "demo_admin"
+        demo_admin = db.query(User).filter(User.username == "demo_admin").first()
+        if demo_admin is None:
+            demo_admin = User(
+                username="demo_admin",
+                password_hash=hash_password("admin123"),
+                role=UserRole.ADMIN,
+            )
+            db.add(demo_admin)
+            db.flush()
+        admin_user = demo_admin
 
-    # 2. Shifts
+    # 2. Shifts (F&B Store Operations + Standard Shifts)
     shift_specs = [
+        ("Ca Sáng F&B (Opening)", "FNB-MORNING", time(6, 0), time(14, 0), False, "Ca mở cửa chuẩn bị quầy Barista & Bếp (06:00 - 14:00)"),
+        ("Ca Chiều F&B (Afternoon)", "FNB-AFTERNOON", time(14, 0), time(22, 0), False, "Ca phục vụ chiều & cao điểm tối (14:00 - 22:00)"),
+        ("Ca Đêm F&B (Overnight)", "FNB-NIGHT", time(22, 0), time(6, 0), True, "Ca đêm 24/7 & vệ sinh đóng quầy qua ngày (22:00 - 06:00)"),
+        ("Ca Gãy Cao Điểm (Peak Split)", "FNB-PEAK", time(10, 0), time(14, 0), False, "Ca Part-time tăng cường giờ cao điểm trưa (10:00 - 14:00)"),
         ("Day Office", "DAY-OFFICE", time(8, 0), time(17, 0), False, "Standard 08:00 - 17:00 office shift"),
         ("Morning Shift", "MORNING-SHIFT", time(7, 30), time(16, 30), False, "Early operations shift"),
         ("Night Shift", "NIGHT-SHIFT", time(22, 0), time(6, 0), True, "Overnight security & operations shift"),
@@ -120,31 +137,35 @@ def seed_demo_data(
             db.flush()
         shifts_by_code[s_code] = shift
 
-    day_shift = shifts_by_code["DAY-OFFICE"]
+    day_shift = shifts_by_code["FNB-MORNING"]
+    afternoon_shift = shifts_by_code["FNB-AFTERNOON"]
 
-    # 3. Weekly Schedule (Mon-Fri Day Office, Sat-Sun Off)
-    std_schedule = db.query(WorkSchedule).filter(WorkSchedule.code == "STD-WEEK").first()
+    # 3. Weekly Schedules (F&B Rotating Shift & Standard Week)
+    std_schedule = db.query(WorkSchedule).filter(WorkSchedule.code == "FNB-ROTATING").first()
     if std_schedule is None:
         std_schedule = WorkSchedule(
-            name="Standard Office Week",
-            code="STD-WEEK",
-            description="Monday to Friday (08:00 - 17:00), Weekend Off",
+            name="Lịch Ca Xoay Cửa Hàng F&B (6 Ngày/Tuần)",
+            code="FNB-ROTATING",
+            description="T2-T4 Ca Sáng (06:00-14:00), T5-T7 Ca Chiều (14:00-22:00), CN Nghỉ",
             is_active=True,
         )
         std_schedule.rules = [
-            ScheduleRule(day_of_week=day_num, shift_id=day_shift.id if day_num <= 5 else None)
+            ScheduleRule(
+                day_of_week=day_num,
+                shift_id=day_shift.id if day_num <= 3 else (afternoon_shift.id if day_num <= 6 else None),
+            )
             for day_num in range(1, 8)
         ]
         db.add(std_schedule)
         db.flush()
 
-    # 4. Demo Employees & User Accounts
+    # 4. Demo Employees & User Accounts (F&B Store Staff)
     demo_staff = [
-        ("emp_khoa", "EMP-001", "Tran Dang Khoa", "khoa.tran@averis.vn", "Engineering"),
-        ("emp_linh", "EMP-002", "Nguyen Phuong Linh", "linh.nguyen@averis.vn", "Human Resources"),
-        ("emp_minh", "EMP-003", "Le Hoang Minh", "minh.le@averis.vn", "Product & AI"),
-        ("emp_anh", "EMP-004", "Pham Ngoc Anh", "anh.pham@averis.vn", "Finance"),
-        ("emp_huy", "EMP-005", "Vo Quoc Huy", "huy.vo@averis.vn", "Engineering"),
+        ("demo_khoa", "EMP-D001", "Trần Đăng Khoa", "demo.khoa@averis.vn", "Quầy Pha Chế - Barista"),
+        ("demo_linh", "EMP-D002", "Nguyễn Phương Linh", "demo.linh@averis.vn", "Sảnh Phục Vụ - Service"),
+        ("demo_minh", "EMP-D003", "Lê Hoàng Minh", "demo.minh@averis.vn", "Khu Vực Bếp - Kitchen"),
+        ("demo_anh", "EMP-D004", "Phạm Ngọc Ánh", "demo.anh@averis.vn", "Quầy Thu Ngân - POS"),
+        ("demo_huy", "EMP-D005", "Võ Quốc Huy", "demo.huy@averis.vn", "Quản Lý Cửa Hàng - Store Ops"),
     ]
 
     today = date.today()
@@ -262,24 +283,24 @@ def seed_demo_data(
             )
             records_created += 1
 
-    # 6. Sample Attendance Explanation / Leave Requests
+    # 6. Sample F&B Attendance Explanation / Leave Requests
     if demo_employees and db.query(AttendanceRequest).count() == 0:
         db.add_all(
             [
                 AttendanceRequest(
                     employee_id=demo_employees[0].id,
-                    target_date=today - timedelta(days=1),
-                    request_type=AttendanceRequestType.LATE_EXPLANATION,
-                    reason="Traffic congestion due to heavy rain on Nguyen Van Linh street.",
+                    date=today - timedelta(days=1),
+                    request_type=AttendanceRequestType.FORGOT_CHECKIN,
+                    reason="[F&B Rush Hour] Đông khách đột biến đầu ca sáng tại Quầy Pha Chế - Barista nên quên quét mặt check-in Kiosk.",
                     status=AttendanceRequestStatus.PENDING,
                 ),
                 AttendanceRequest(
                     employee_id=demo_employees[1].id,
-                    target_date=today - timedelta(days=3),
-                    request_type=AttendanceRequestType.FORGOT_CHECKOUT,
-                    reason="Attended client workshop off-site at 16:30 and forgot kiosk check-out.",
+                    date=today - timedelta(days=3),
+                    request_type=AttendanceRequestType.LATE_EXPLANATION,
+                    reason="[Part-time Shift Swap] Xin đổi ca Chiều sang ca Sáng hỗ trợ Sảnh Phục Vụ, đến trễ 15p do lịch thi tại trường.",
                     status=AttendanceRequestStatus.APPROVED,
-                    admin_note="Verified with project manager. Approved full day credit.",
+                    admin_note="Cửa hàng trưởng đã xác nhận lịch đổi ca. Duyệt đủ công ca sáng.",
                     reviewed_by=admin_user.id,
                     reviewed_at=datetime.now(timezone.utc),
                 ),
@@ -289,8 +310,8 @@ def seed_demo_data(
     db.commit()
     return {
         "seeded": True,
-        "admin_credentials": {"username": "admin", "password": "admin123"},
-        "employee_credentials": {"username": "emp_khoa", "password": "emp123"},
+        "admin_credentials": {"username": demo_admin_username, "password": "admin123"},
+        "employee_credentials": {"username": "demo_khoa", "password": "emp123"},
         "employees_total": len(demo_employees),
         "attendance_records_created": records_created,
     }

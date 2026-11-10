@@ -439,9 +439,9 @@ export default function Employees() {
         return;
       }
     } else if (!editingEmployee && userLinkMode === "new") {
-      if (!newAccountForm.username.trim() || newAccountForm.password.length < 6) {
+      if (!newAccountForm.username.trim() || newAccountForm.password.length < 8) {
         setFormError(
-          "New login username is required and password must be at least 6 characters."
+          "New login username is required and password must be at least 8 characters."
         );
         return;
       }
@@ -2267,7 +2267,7 @@ export default function Employees() {
                 {/* Department */}
 
                 <FormField
-                  label="Department"
+                  label="F&B Station / Department"
                 >
                   <input
                     type="text"
@@ -2280,10 +2280,28 @@ export default function Employees() {
                         event.target.value
                       )
                     }
-                    placeholder="IT"
+                    placeholder="Quầy Pha Chế - Barista"
                     disabled={saving}
                     className={inputClassName}
                   />
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[
+                      "Quầy Pha Chế - Barista",
+                      "Khu Vực Bếp - Kitchen",
+                      "Sảnh Phục Vụ - Service",
+                      "Quầy Thu Ngân - POS",
+                      "Quản Lý Cửa Hàng - Store Ops",
+                    ].map((station) => (
+                      <button
+                        key={station}
+                        type="button"
+                        onClick={() => handleChange("department", station)}
+                        className="rounded-md border border-blue-200 bg-blue-50/70 px-2 py-0.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100"
+                      >
+                        + {station}
+                      </button>
+                    ))}
+                  </div>
                 </FormField>
 
 
@@ -2382,7 +2400,7 @@ export default function Employees() {
                         </div>
                         <div>
                           <label className="mb-1 block text-[11px] font-bold text-slate-600">
-                            Login Password (min 6 chars) *
+                            Login Password (min 8 chars) *
                           </label>
                           <input
                             type="password"

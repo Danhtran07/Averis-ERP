@@ -162,7 +162,7 @@ const isUsersActive =
               shadow-sm
             "
           >
-            F
+            A
           </div>
 
           <div className="ml-3">
@@ -174,7 +174,7 @@ const isUsersActive =
                 text-slate-900
               "
             >
-              FaceAttend
+              Averis
             </div>
 
             <div
@@ -186,7 +186,7 @@ const isUsersActive =
                 text-slate-400
               "
             >
-              Attendance System
+              Biometric Attendance
             </div>
 
           </div>
@@ -627,7 +627,7 @@ const isUsersActive =
               sm:block
             "
           >
-            FaceAttend
+            Averis · Hệ thống quản trị & điểm danh sinh trắc học
           </div>
 
 

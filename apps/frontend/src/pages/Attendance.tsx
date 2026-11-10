@@ -169,6 +169,7 @@ export default function Attendance() {
   // Timesheet report state (Admin)
   const [report, setReport] = useState<MonthlyTimesheetReportResponse | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [hourlyRateVnd, setHourlyRateVnd] = useState<number>(35000);
 
   // Requests state (Admin & Employee)
   const [requests, setRequests] = useState<AttendanceRequestItem[]>([]);
@@ -464,12 +465,18 @@ export default function Attendance() {
     );
   }
 
+  function calculateFnbPayrollVnd(workingMins: number, overtimeMins: number) {
+    const regularHours = Math.max(0, workingMins - overtimeMins) / 60;
+    const otHours = Math.max(0, overtimeMins) / 60;
+    return Math.round((regularHours + otHours * 1.5) * hourlyRateVnd);
+  }
+
   function handleExportCompanyReportCsv() {
     if (!report) return;
     const headers = [
       "Employee Code",
       "Full Name",
-      "Department",
+      "F&B Station / Department",
       "Present Days",
       "Late Days",
       "Absent Days",
@@ -478,6 +485,8 @@ export default function Attendance() {
       "Total Late Minutes",
       "Early Leave Minutes",
       "Overtime Minutes",
+      "Hourly Rate (VND)",
+      "Est. F&B Payroll (VND)",
       "Avg Face Similarity %",
       "Avg Liveness %",
     ];
@@ -493,11 +502,13 @@ export default function Attendance() {
       r.total_late_minutes,
       r.total_early_leave_minutes,
       r.total_overtime_minutes,
+      hourlyRateVnd,
+      calculateFnbPayrollVnd(r.total_working_minutes, r.total_overtime_minutes),
       r.avg_face_similarity != null ? (r.avg_face_similarity * 100).toFixed(1) : "",
       r.avg_liveness_score != null ? (r.avg_liveness_score * 100).toFixed(1) : "",
     ]);
     downloadCsvFile(
-      `company_payroll_${year}_${String(month).padStart(2, "0")}.csv`,
+      `averis_fnb_payroll_${year}_${String(month).padStart(2, "0")}.csv`,
       headers,
       rows
     );
@@ -731,13 +742,29 @@ export default function Attendance() {
                 onChange={(e) => setDepartmentFilter(e.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
               >
-                <option value="">All Departments</option>
+                <option value="">All F&amp;B Stations / Departments</option>
                 {departments.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>
                 ))}
               </select>
+
+              <div className="flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-1.5">
+                <span className="text-[11px] font-bold text-blue-700">
+                  Đơn giá F&amp;B (VNĐ/h):
+                </span>
+                <select
+                  value={hourlyRateVnd}
+                  onChange={(e) => setHourlyRateVnd(Number(e.target.value))}
+                  className="rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value={28000}>28,000đ/h (Part-time Phục vụ)</option>
+                  <option value={35000}>35,000đ/h (Barista / Bếp / POS)</option>
+                  <option value={45000}>45,000đ/h (Tổ trưởng / Ca trưởng)</option>
+                  <option value={60000}>60,000đ/h (Quản lý cửa hàng)</option>
+                </select>
+              </div>
             </div>
 
             <button
@@ -747,9 +774,63 @@ export default function Attendance() {
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
             >
               <Download size={15} />
-              Export Payroll Excel (.CSV)
+              Export F&amp;B Payroll (.CSV)
             </button>
           </div>
+
+          {report && report.rows.length > 0 && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  F&amp;B Staff Count
+                </p>
+                <p className="mt-1.5 text-2xl font-extrabold text-slate-900">
+                  {report.rows.length} <span className="text-xs font-semibold text-slate-400">nhân sự</span>
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Total Shift Hours
+                </p>
+                <p className="mt-1.5 text-2xl font-extrabold text-blue-600">
+                  {(
+                    report.rows.reduce((acc, r) => acc + r.total_working_minutes, 0) / 60
+                  ).toFixed(1)}
+                  h
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Total Overtime (x1.5)
+                </p>
+                <p className="mt-1.5 text-2xl font-extrabold text-amber-600">
+                  {(
+                    report.rows.reduce((acc, r) => acc + r.total_overtime_minutes, 0) / 60
+                  ).toFixed(1)}
+                  h
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                  Est. Total F&amp;B Payroll
+                </p>
+                <p className="mt-1.5 text-2xl font-extrabold text-emerald-700">
+                  {report.rows
+                    .reduce(
+                      (acc, r) =>
+                        acc +
+                        calculateFnbPayrollVnd(
+                          r.total_working_minutes,
+                          r.total_overtime_minutes
+                        ),
+                      0
+                    )
+                    .toLocaleString("vi-VN")}
+                  đ
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {reportLoading ? (
@@ -765,13 +846,14 @@ export default function Attendance() {
                     <tr>
                       <th className="px-4 py-3.5">Code</th>
                       <th className="px-4 py-3.5">Employee</th>
-                      <th className="px-4 py-3.5">Department</th>
+                      <th className="px-4 py-3.5">F&amp;B Station</th>
                       <th className="px-4 py-3.5 text-center">Present</th>
                       <th className="px-4 py-3.5 text-center">Late</th>
                       <th className="px-4 py-3.5 text-center">Absent</th>
                       <th className="px-4 py-3.5 text-right">Working Time</th>
                       <th className="px-4 py-3.5 text-right">Late Mins</th>
                       <th className="px-4 py-3.5 text-right">Overtime</th>
+                      <th className="px-4 py-3.5 text-right">Est. Payroll (VNĐ)</th>
                       <th className="px-4 py-3.5 text-right">AI Match</th>
                     </tr>
                   </thead>
@@ -810,6 +892,13 @@ export default function Attendance() {
                         </td>
                         <td className="px-4 py-3.5 text-right font-semibold text-blue-600">
                           {formatMinutes(row.total_overtime_minutes)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-extrabold text-emerald-700">
+                          {calculateFnbPayrollVnd(
+                            row.total_working_minutes,
+                            row.total_overtime_minutes
+                          ).toLocaleString("vi-VN")}
+                          đ
                         </td>
                         <td className="px-4 py-3.5 text-right text-xs font-semibold text-slate-600">
                           {row.avg_face_similarity != null
@@ -1582,6 +1671,55 @@ export default function Attendance() {
                 </label>
               </div>
             )}
+
+            <div className="space-y-2">
+              <span className="block text-xs font-bold uppercase tracking-wide text-slate-500">
+                Mẫu lý do nhanh ngành F&amp;B (1-Click):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  {
+                    label: "Đông khách giờ cao điểm (Quên Check-in)",
+                    type: "FORGOT_CHECKIN" as AttendanceRequestType,
+                    reason:
+                      "[F&B Rush Hour] Đông khách giờ cao điểm tại quầy Pha Chế / Thu Ngân nên chưa kịp quét mặt check-in đầu ca.",
+                  },
+                  {
+                    label: "Xin đổi ca xoay (Shift Swap)",
+                    type: "LATE_EXPLANATION" as AttendanceRequestType,
+                    reason:
+                      "[Đổi Ca F&B] Đã báo Cửa hàng trưởng đổi từ Ca Chiều sang Ca Sáng với đồng nghiệp cùng bộ phận.",
+                  },
+                  {
+                    label: "Trễ ca xoay 15p (Mưa / Kẹt xe)",
+                    type: "LATE_EXPLANATION" as AttendanceRequestType,
+                    reason:
+                      "[Ca Xoay F&B] Đến cửa hàng trễ 15 phút do mưa lớn và kẹt xe giờ giao ca.",
+                  },
+                  {
+                    label: "Tăng ca đóng quầy (Closing Shift)",
+                    type: "FORGOT_CHECKIN" as AttendanceRequestType,
+                    reason:
+                      "[Closing Shift] Ở lại hỗ trợ kiểm kê nguyên liệu và vệ sinh đóng quầy Bếp/Bar sau 22:00.",
+                  },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() =>
+                      setRequestForm((prev) => ({
+                        ...prev,
+                        request_type: preset.type,
+                        reason: preset.reason,
+                      }))
+                    }
+                    className="rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-left text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100"
+                  >
+                    + {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <label className="block">
               <span className="mb-1 block text-sm font-semibold text-slate-700">

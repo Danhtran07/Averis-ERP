@@ -12,7 +12,7 @@ from app.api.routes.schedules import router as schedules_router
 from app.api.routes.users import router as users_router
 
 
-app = FastAPI(title="FaceAttend Backend")
+app = FastAPI(title="Averis Backend")
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)

@@ -40,9 +40,8 @@ function isWorkConfigTab(value: string | null): value is WorkConfigTab {
 
 export default function Schedules() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab: WorkConfigTab = isWorkConfigTab(searchParams.get("tab"))
-    ? searchParams.get("tab")!
-    : "schedules";
+  const rawTab = searchParams.get("tab");
+  const tab: WorkConfigTab = isWorkConfigTab(rawTab) ? rawTab : "schedules";
 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
@@ -342,9 +341,36 @@ export default function Schedules() {
           </div>
 
           <form onSubmit={handleCreateShift} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Plus size={20} /></div>
-              <div><h2 className="font-bold text-slate-900">Add a shift</h2><p className="text-sm text-slate-500">Choose a preset, then adjust the hours as needed.</p></div>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Plus size={20} /></div>
+                <div><h2 className="font-bold text-slate-900">Add a shift</h2><p className="text-sm text-slate-500">Choose a preset or 1-click F&amp;B store shift template below.</p></div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: "Ca Sáng F&B (Opening)", code: "FNB-MORNING", start: "06:00", end: "14:00", desc: "Ca mở quầy Barista & Bếp" },
+                  { name: "Ca Chiều F&B (Afternoon)", code: "FNB-AFTERNOON", start: "14:00", end: "22:00", desc: "Ca phục vụ chiều & tối" },
+                  { name: "Ca Đêm F&B (Overnight)", code: "FNB-NIGHT", start: "22:00", end: "06:00", desc: "Ca trực đêm & đóng quầy" },
+                  { name: "Ca Gãy Cao Điểm (Peak)", code: "FNB-PEAK", start: "10:00", end: "14:00", desc: "Ca Part-time cao điểm trưa" },
+                ].map((p) => (
+                  <button
+                    key={p.code}
+                    type="button"
+                    onClick={() =>
+                      setShiftForm({
+                        name: p.name,
+                        code: p.code,
+                        start_time: p.start,
+                        end_time: p.end,
+                        description: p.desc,
+                      })
+                    }
+                    className="rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
+                  >
+                    + {p.name}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className="text-sm font-semibold text-slate-700">Shift type
@@ -471,28 +497,61 @@ export default function Schedules() {
                   </div>
                 </div>
                 {shifts.some((s) => s.is_active) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const activeShift = shifts.find((s) => s.is_active);
-                      if (!activeShift) return;
-                      setScheduleForm((prev) => ({
-                        ...prev,
-                        dayShifts: {
-                          1: String(activeShift.id),
-                          2: String(activeShift.id),
-                          3: String(activeShift.id),
-                          4: String(activeShift.id),
-                          5: String(activeShift.id),
-                          6: "",
-                          7: "",
-                        },
-                      }));
-                    }}
-                    className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
-                  >
-                    Auto-fill Mon–Fri
-                  </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const activeShifts = shifts.filter((s) => s.is_active);
+                        if (activeShifts.length === 0) return;
+                        const morning =
+                          activeShifts.find((s) => s.code.includes("MORNING")) ||
+                          activeShifts[0];
+                        const afternoon =
+                          activeShifts.find((s) => s.code.includes("AFTERNOON")) ||
+                          activeShifts[Math.min(1, activeShifts.length - 1)];
+                        setScheduleForm((prev) => ({
+                          ...prev,
+                          name: "Lịch Ca Xoay Cửa Hàng F&B (6 Ngày)",
+                          code: "FNB-ROTATING",
+                          description: "T2-T4 Ca Sáng, T5-T7 Ca Chiều, CN Nghỉ",
+                          dayShifts: {
+                            1: String(morning.id),
+                            2: String(morning.id),
+                            3: String(morning.id),
+                            4: String(afternoon.id),
+                            5: String(afternoon.id),
+                            6: String(afternoon.id),
+                            7: "",
+                          },
+                        }));
+                      }}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                    >
+                      Mẫu Ca Xoay F&amp;B (T2–T7)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const activeShift = shifts.find((s) => s.is_active);
+                        if (!activeShift) return;
+                        setScheduleForm((prev) => ({
+                          ...prev,
+                          dayShifts: {
+                            1: String(activeShift.id),
+                            2: String(activeShift.id),
+                            3: String(activeShift.id),
+                            4: String(activeShift.id),
+                            5: String(activeShift.id),
+                            6: "",
+                            7: "",
+                          },
+                        }));
+                      }}
+                      className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                    >
+                      Auto-fill Mon–Fri
+                    </button>
+                  </div>
                 )}
               </div>
 

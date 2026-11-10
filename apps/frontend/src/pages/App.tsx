@@ -514,13 +514,13 @@ export default function App() {
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
-              FaceAttend AI Terminal
+              Averis F&amp;B Biometric POS Terminal
             </p>
             <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              AI Face Check-in
+              AI Face Check-in (Trạm Kiosk Cửa Hàng)
             </h1>
             <p className="mt-3 text-base leading-7 text-slate-500">
-              Verify your identity with a live camera capture before recording attendance.
+              Chấm công sinh trắc học không chạm (Touchless Biometrics) — tối ưu cho nhân sự Bếp, Pha chế (Barista) &amp; Phục vụ khi tay ướt hoặc đeo găng tay vệ sinh thực phẩm.
             </p>
           </div>
 

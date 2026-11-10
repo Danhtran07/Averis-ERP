@@ -340,7 +340,9 @@ export default function Dashboard() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">
-            {isAdmin ? "Enterprise SaaS Overview" : "Employee Self-Service Portal"}
+            {isAdmin
+              ? "Averis F&B Enterprise SaaS — Quản Trị Chuỗi Cửa Hàng & Nhân Sự"
+              : "Averis F&B Employee Self-Service Portal"}
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
             Dashboard

@@ -197,7 +197,7 @@ class BackendRecognitionResponse(BaseModel):
     liveness_score: float = 0.0
     verification_status: str = "UNVERIFIED"
     session_id: Optional[str] = None
-    # Kept for compatibility with the existing FaceAttend client contract.
+    # Kept for compatibility with the Averis client contract.
     success: bool = True
     recognized: Optional[bool] = None
     error_code: Optional[str] = None

@@ -71,15 +71,15 @@ async def _session_cleanup_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(_session_cleanup_loop())
-    logger.info("Face Biometrics API started")
+    logger.info("Averis AI Biometrics Service started")
     yield
     task.cancel()
     engine.close()
-    logger.info("Face Biometrics API shut down")
+    logger.info("Averis AI Biometrics Service shut down")
 
 
 # ── App setup ─────────────────────────────────────────────────────────────────
-app = FastAPI(title="Face Biometrics API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Averis AI Biometrics Service", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(_LimitBodySize)
 app.add_middleware(
@@ -655,7 +655,7 @@ def delete_face(face_id: str):
 
 @app.post("/face/enroll")
 def legacy_enroll(body: LegacyEnrollRequest):
-    """Compatibility route for the existing FaceAttend frontend."""
+    """Compatibility route for the Averis frontend."""
     try:
         img_bytes = base64.b64decode(body.image)
     except Exception:

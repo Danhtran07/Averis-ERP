@@ -1,7 +1,8 @@
 FROM python:3.11-slim
 
-# System deps needed by OpenCV, InsightFace, MediaPipe
+# System deps needed by OpenCV, InsightFace (build), MediaPipe
 RUN apt-get update && apt-get install -y \
+    build-essential \
     libgl1 \
     libegl1 \
     libglib2.0-0 \

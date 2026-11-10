@@ -1,6 +1,8 @@
 export type UserRole =
   | "ADMIN"
-  | "EMPLOYEE";
+  | "EMPLOYEE"
+  | "HR"
+  | "MANAGER";
 
 export interface UserResponse {
   id: number;
