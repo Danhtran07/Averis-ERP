@@ -4,8 +4,8 @@ interface EmptyStateProps {
 }
 
 export default function EmptyState({
-  title = "No data found",
-  message = "There are no records to display.",
+  title = "Chưa có dữ liệu",
+  message = "Hiện chưa có bản ghi nào để hiển thị.",
 }: EmptyStateProps) {
   return (
     <div className="flex min-h-[240px] items-center justify-center">
@@ -14,7 +14,7 @@ export default function EmptyState({
           ∅
         </div>
 
-        <h3 className="text-sm font-bold text-slate-700">
+        <h3 className="text-sm font-semibold text-slate-700">
           {title}
         </h3>
 

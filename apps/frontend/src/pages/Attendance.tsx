@@ -16,6 +16,7 @@ import {
   createAttendance,
   createAttendanceRequest,
   deleteAttendance,
+  deleteAttendanceRequest,
   getAttendanceCalendar,
   getAttendanceRequests,
   getMonthlyTimesheetReport,
@@ -40,26 +41,26 @@ import type { EmployeeSchedule } from "../types/schedule";
 import { getCalendarCellCount, shiftMonth } from "./attendanceCalendar";
 
 const monthNames = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Tháng 1",
+  "Tháng 2",
+  "Tháng 3",
+  "Tháng 4",
+  "Tháng 5",
+  "Tháng 6",
+  "Tháng 7",
+  "Tháng 8",
+  "Tháng 9",
+  "Tháng 10",
+  "Tháng 11",
+  "Tháng 12",
 ];
-const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const weekDays = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
 
 const REQUEST_TYPE_LABELS: Record<AttendanceRequestType, string> = {
-  FORGOT_CHECKIN: "Forgot Check-in / Check-out",
-  LATE_EXPLANATION: "Late Arrival Explanation",
-  EARLY_LEAVE: "Early Leave Explanation",
-  LEAVE: "Authorized Leave / Day Off",
+  FORGOT_CHECKIN: "Quên chấm công vào / ra",
+  LATE_EXPLANATION: "Giải trình đi trễ",
+  EARLY_LEAVE: "Giải trình về sớm",
+  LEAVE: "Xin nghỉ phép có phép",
 };
 
 function todayIso() {
@@ -118,12 +119,12 @@ function statusClass(
   hasRecord: boolean,
   selected: boolean
 ) {
-  const ring = selected ? " ring-2 ring-blue-500" : "";
-  if (future) return `border-blue-100 bg-blue-50 text-blue-600${ring}`;
-  if (!hasRecord) return `border-slate-200 bg-slate-100 text-slate-500${ring}`;
-  if (status === "PRESENT") return `border-emerald-200 bg-emerald-50 text-emerald-700${ring}`;
-  if (status === "LATE") return `border-amber-200 bg-amber-50 text-amber-700${ring}`;
-  return `border-rose-200 bg-rose-50 text-rose-700${ring}`;
+  const ring = selected ? " ring-2 ring-slate-900" : "";
+  if (future) return `border-slate-100 bg-white text-slate-400${ring}`;
+  if (!hasRecord) return `border-slate-200 bg-slate-50 text-slate-400${ring}`;
+  if (status === "PRESENT") return `border-slate-900 bg-slate-900 text-white${ring}`;
+  if (status === "LATE") return `border-slate-400 bg-slate-100 text-slate-900${ring}`;
+  return `border-slate-300 bg-white text-slate-600${ring}`;
 }
 
 export default function Attendance() {
@@ -170,6 +171,7 @@ export default function Attendance() {
   const [report, setReport] = useState<MonthlyTimesheetReportResponse | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [hourlyRateVnd, setHourlyRateVnd] = useState<number>(35000);
+  const [hideEmptyRows, setHideEmptyRows] = useState<boolean>(true);
 
   // Requests state (Admin & Employee)
   const [requests, setRequests] = useState<AttendanceRequestItem[]>([]);
@@ -476,7 +478,7 @@ export default function Attendance() {
     const headers = [
       "Employee Code",
       "Full Name",
-      "F&B Station / Department",
+      "Department",
       "Present Days",
       "Late Days",
       "Absent Days",
@@ -486,7 +488,7 @@ export default function Attendance() {
       "Early Leave Minutes",
       "Overtime Minutes",
       "Hourly Rate (VND)",
-      "Est. F&B Payroll (VND)",
+      "Est. Payroll (VND)",
       "Avg Face Similarity %",
       "Avg Liveness %",
     ];
@@ -508,7 +510,7 @@ export default function Attendance() {
       r.avg_liveness_score != null ? (r.avg_liveness_score * 100).toFixed(1) : "",
     ]);
     downloadCsvFile(
-      `averis_fnb_payroll_${year}_${String(month).padStart(2, "0")}.csv`,
+      `averis_payroll_${year}_${String(month).padStart(2, "0")}.csv`,
       headers,
       rows
     );
@@ -518,8 +520,7 @@ export default function Attendance() {
     isAdmin &&
       employeeId &&
       selectedDay &&
-      selectedDay.date <= currentToday &&
-      (!selectedDay.is_weekend || selectedDay.has_record)
+      selectedDay.date <= currentToday
   );
 
   async function saveDay(event: FormEvent<HTMLFormElement>) {
@@ -586,10 +587,10 @@ export default function Attendance() {
             : requestForm.requested_check_out || null,
       });
       setShowRequestModal(false);
-      setRequestFeedback("Your request has been submitted for Admin review.");
+      setRequestFeedback("Đơn giải trình / nghỉ phép của bạn đã được gửi tới Quản trị viên.");
       await loadRequests();
     } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to submit attendance request."));
+      setError(getApiErrorMessage(err, "Không thể gửi đơn giải trình."));
     } finally {
       setRequestSubmitting(false);
     }
@@ -601,8 +602,8 @@ export default function Attendance() {
   ) {
     const note = window.prompt(
       decision === "APPROVED"
-        ? "Optional approval note (leave blank if none):"
-        : "Reason for rejection (optional):",
+        ? "Ghi chú phê duyệt (tuỳ chọn, để trống nếu không có):"
+        : "Lý do từ chối (tuỳ chọn):",
       ""
     );
     if (note === null) return;
@@ -615,15 +616,54 @@ export default function Attendance() {
       await loadRequests();
       await loadCalendar();
     } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to review request."));
+      setError(getApiErrorMessage(err, "Không thể xử lý đơn từ."));
     } finally {
       setReviewingId(null);
     }
   }
 
+  const [requestSearch, setRequestSearch] = useState("");
+  const [requestTypeFilter, setRequestTypeFilter] = useState<string>("ALL");
+  const [requestStatusFilter, setRequestStatusFilter] = useState<string>("ALL");
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
+
+  const filteredRequests = useMemo(() => {
+    const q = requestSearch.trim().toLowerCase();
+    return requests.filter((item) => {
+      if (requestTypeFilter !== "ALL" && item.request_type !== requestTypeFilter) {
+        return false;
+      }
+      if (requestStatusFilter !== "ALL" && item.status !== requestStatusFilter) {
+        return false;
+      }
+      if (!q) return true;
+      const name = (item.employee_name || "").toLowerCase();
+      const code = (item.employee_code || "").toLowerCase();
+      const reason = (item.reason || "").toLowerCase();
+      return name.includes(q) || code.includes(q) || reason.includes(q);
+    });
+  }, [requests, requestSearch, requestTypeFilter, requestStatusFilter]);
+
+  async function handleCancelRequest(reqId: number) {
+    if (!window.confirm("Bạn có chắc chắn muốn huỷ đơn đang chờ duyệt này?")) {
+      return;
+    }
+    try {
+      setCancellingId(reqId);
+      setError("");
+      await deleteAttendanceRequest(reqId);
+      setRequestFeedback("Đã huỷ đơn giải trình / nghỉ phép thành công.");
+      await loadRequests();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Không thể huỷ đơn từ."));
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   const shift = daySchedule?.shift;
   const selectedLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString(
-    "en-US",
+    "vi-VN",
     { weekday: "long", month: "long", day: "numeric", year: "numeric" }
   );
 
@@ -633,64 +673,56 @@ export default function Attendance() {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
-            Attendance &amp; Payroll Hub
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-            {isAdmin ? "Attendance & Timesheets" : "My Attendance & Requests"}
+          <h1 className="text-xl font-semibold text-slate-900">
+            {isAdmin ? "Chấm công & Bảng lương" : "Bảng công & Đơn từ"}
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {isAdmin
-              ? "Manage daily check-ins, export monthly payroll timesheets, and approve employee requests."
-              : "Track your monthly working hours, shift schedule, and submit attendance explanations."}
-          </p>
         </div>
 
         {/* NAVIGATION TABS */}
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-1.5 shadow-2xs">
           <button
             type="button"
             onClick={() => setTab("calendar")}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition ${
+            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
               activeTab === "calendar"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             <CalendarDays size={15} />
-            Calendar View
+            Lịch chấm công
           </button>
           {isAdmin && (
             <button
               type="button"
               onClick={() => setTab("timesheet")}
-              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition ${
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeTab === "timesheet"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               <FileSpreadsheet size={15} />
-              Monthly Timesheet Export
+              Bảng công &amp; Lương tháng
             </button>
           )}
           <button
             type="button"
             onClick={() => setTab("requests")}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition ${
+            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
               activeTab === "requests"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             <FileText size={15} />
-            {isAdmin ? "Approval Requests" : "My Requests"}
+            {isAdmin ? "Duyệt đơn từ" : "Đơn từ của tôi"}
             {pendingCount > 0 && (
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                   activeTab === "requests"
-                    ? "bg-white text-blue-600"
-                    : "bg-amber-100 text-amber-800"
+                    ? "bg-white text-slate-900"
+                    : "bg-slate-200 text-slate-800"
                 }`}
               >
                 {pendingCount}
@@ -701,7 +733,7 @@ export default function Attendance() {
       </header>
 
       {requestFeedback && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800">
           {requestFeedback}
         </div>
       )}
@@ -715,7 +747,7 @@ export default function Attendance() {
       ========================================================= */}
       {activeTab === "timesheet" && isAdmin && (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4  sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <button
@@ -725,7 +757,7 @@ export default function Attendance() {
                 >
                   ‹
                 </button>
-                <span className="min-w-[140px] text-center text-sm font-bold text-slate-900">
+                <span className="min-w-[140px] text-center text-sm font-semibold text-slate-900">
                   {monthNames[month - 1]} {year}
                 </span>
                 <button
@@ -740,9 +772,9 @@ export default function Attendance() {
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-slate-400"
               >
-                <option value="">All F&amp;B Stations / Departments</option>
+                <option value="">Tất cả vị trí / quầy</option>
                 {departments.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
@@ -750,71 +782,81 @@ export default function Attendance() {
                 ))}
               </select>
 
-              <div className="flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-1.5">
-                <span className="text-[11px] font-bold text-blue-700">
-                  Đơn giá F&amp;B (VNĐ/h):
+              <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-xs font-medium text-slate-600">
+                  Đơn giá giờ:
                 </span>
                 <select
                   value={hourlyRateVnd}
                   onChange={(e) => setHourlyRateVnd(Number(e.target.value))}
-                  className="rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 outline-none"
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
                 >
-                  <option value={28000}>28,000đ/h (Part-time Phục vụ)</option>
-                  <option value={35000}>35,000đ/h (Barista / Bếp / POS)</option>
-                  <option value={45000}>45,000đ/h (Tổ trưởng / Ca trưởng)</option>
-                  <option value={60000}>60,000đ/h (Quản lý cửa hàng)</option>
+                  <option value={28000}>28.000đ/h</option>
+                  <option value={35000}>35.000đ/h</option>
+                  <option value={45000}>45.000đ/h</option>
+                  <option value={60000}>60.000đ/h</option>
                 </select>
               </div>
+
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={hideEmptyRows}
+                  onChange={(e) => setHideEmptyRows(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                />
+                Ẩn nhân viên chưa có công
+              </label>
             </div>
 
             <button
               type="button"
               onClick={handleExportCompanyReportCsv}
               disabled={!report || report.rows.length === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
             >
               <Download size={15} />
-              Export F&amp;B Payroll (.CSV)
+              Xuất CSV
             </button>
           </div>
 
           {report && report.rows.length > 0 && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  F&amp;B Staff Count
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs text-slate-500">
+                  Tổng giờ làm việc thực tế
                 </p>
-                <p className="mt-1.5 text-2xl font-extrabold text-slate-900">
-                  {report.rows.length} <span className="text-xs font-semibold text-slate-400">nhân sự</span>
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Total Shift Hours
-                </p>
-                <p className="mt-1.5 text-2xl font-extrabold text-blue-600">
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
                   {(
                     report.rows.reduce((acc, r) => acc + r.total_working_minutes, 0) / 60
                   ).toFixed(1)}
                   h
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Total Overtime (x1.5)
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs text-slate-500">
+                  Số phút trễ ca mở quầy
                 </p>
-                <p className="mt-1.5 text-2xl font-extrabold text-amber-600">
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
+                  {report.rows.reduce((acc, r) => acc + r.total_late_minutes, 0)}p
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs text-slate-500">
+                  Giờ tăng ca (OT)
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
                   {(
                     report.rows.reduce((acc, r) => acc + r.total_overtime_minutes, 0) / 60
                   ).toFixed(1)}
                   h
                 </p>
               </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
-                  Est. Total F&amp;B Payroll
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs text-slate-500">
+                  Ước tính lương theo giờ
                 </p>
-                <p className="mt-1.5 text-2xl font-extrabold text-emerald-700">
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
                   {report.rows
                     .reduce(
                       (acc, r) =>
@@ -832,81 +874,103 @@ export default function Attendance() {
             </div>
           )}
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             {reportLoading ? (
-              <LoadingState message="Calculating monthly company timesheet..." />
+              <LoadingState message="Đang tính toán bảng công và lương tháng..." />
             ) : !report || report.rows.length === 0 ? (
               <div className="p-12 text-center text-sm text-slate-500">
-                No employee records found for this filter.
+                Không tìm thấy dữ liệu nhân sự theo bộ lọc hiện tại.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-500">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
                     <tr>
-                      <th className="px-4 py-3.5">Code</th>
-                      <th className="px-4 py-3.5">Employee</th>
-                      <th className="px-4 py-3.5">F&amp;B Station</th>
-                      <th className="px-4 py-3.5 text-center">Present</th>
-                      <th className="px-4 py-3.5 text-center">Late</th>
-                      <th className="px-4 py-3.5 text-center">Absent</th>
-                      <th className="px-4 py-3.5 text-right">Working Time</th>
-                      <th className="px-4 py-3.5 text-right">Late Mins</th>
-                      <th className="px-4 py-3.5 text-right">Overtime</th>
-                      <th className="px-4 py-3.5 text-right">Est. Payroll (VNĐ)</th>
-                      <th className="px-4 py-3.5 text-right">AI Match</th>
+                      <th className="px-4 py-3.5">Mã NV</th>
+                      <th className="px-4 py-3.5">Họ và tên</th>
+                      <th className="px-4 py-3.5">Vị trí / Quầy</th>
+                      <th className="px-4 py-3.5 text-center">Đúng giờ</th>
+                      <th className="px-4 py-3.5 text-center">Đi trễ</th>
+                      <th className="px-4 py-3.5 text-center">Vắng</th>
+                      <th className="px-4 py-3.5 text-right">Tổng giờ công</th>
+                      <th className="px-4 py-3.5 text-right">Phút trễ</th>
+                      <th className="px-4 py-3.5 text-right">Tăng ca</th>
+                      <th className="px-4 py-3.5 text-right">Lương tạm tính</th>
+                      <th className="px-4 py-3.5 text-right">Độ khớp</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {report.rows.map((row) => (
-                      <tr key={row.employee_id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3.5 font-mono text-xs font-bold text-blue-600">
-                          {row.employee_code}
-                        </td>
-                        <td className="px-4 py-3.5 font-semibold text-slate-900">
-                          {row.full_name}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-500">
-                          {row.department || "—"}
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-                            {row.present_days}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">
-                            {row.late_days}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-700">
-                            {row.absent_days}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-bold text-slate-800">
-                          {formatMinutes(row.total_working_minutes)}
-                        </td>
-                        <td className="px-4 py-3.5 text-right text-amber-700">
-                          {row.total_late_minutes}m
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-semibold text-blue-600">
-                          {formatMinutes(row.total_overtime_minutes)}
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-extrabold text-emerald-700">
-                          {calculateFnbPayrollVnd(
-                            row.total_working_minutes,
-                            row.total_overtime_minutes
-                          ).toLocaleString("vi-VN")}
-                          đ
-                        </td>
-                        <td className="px-4 py-3.5 text-right text-xs font-semibold text-slate-600">
-                          {row.avg_face_similarity != null
-                            ? `${(row.avg_face_similarity * 100).toFixed(1)}%`
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {[...report.rows]
+                      .filter((r) =>
+                        hideEmptyRows
+                          ? r.total_working_minutes > 0 ||
+                            r.present_days > 0 ||
+                            r.late_days > 0 ||
+                            r.absent_days > 0
+                          : true
+                      )
+                      .sort((a, b) => b.total_working_minutes - a.total_working_minutes)
+                      .map((row) => {
+                        const payroll = calculateFnbPayrollVnd(
+                          row.total_working_minutes,
+                          row.total_overtime_minutes
+                        );
+                        return (
+                          <tr key={row.employee_id} className="hover:bg-slate-50/80">
+                            <td className="px-4 py-3.5 font-mono text-xs font-medium text-slate-500">
+                              {row.employee_code}
+                            </td>
+                            <td className="px-4 py-3.5 font-semibold text-slate-900">
+                              {row.full_name}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-600">
+                              {row.department || "—"}
+                            </td>
+                            <td className="px-4 py-3.5 text-center text-slate-700">
+                              {row.present_days > 0 ? row.present_days : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3.5 text-center text-slate-700">
+                              {row.late_days > 0 ? row.late_days : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3.5 text-center text-slate-700">
+                              {row.absent_days > 0 ? row.absent_days : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                              {row.total_working_minutes > 0 ? (
+                                formatMinutes(row.total_working_minutes)
+                              ) : (
+                                <span className="font-normal text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right text-slate-600">
+                              {row.total_late_minutes > 0 ? (
+                                `${row.total_late_minutes}p`
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right text-slate-600">
+                              {row.total_overtime_minutes > 0 ? (
+                                formatMinutes(row.total_overtime_minutes)
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                              {payroll > 0 ? (
+                                `${payroll.toLocaleString("vi-VN")}đ`
+                              ) : (
+                                <span className="font-normal text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right text-xs text-slate-500">
+                              {row.avg_face_similarity != null
+                                ? `${(row.avg_face_similarity * 100).toFixed(1)}%`
+                                : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -920,110 +984,161 @@ export default function Attendance() {
       ========================================================= */}
       {activeTab === "requests" && (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                {isAdmin
-                  ? "Employee Attendance & Leave Requests"
-                  : "My Explanation & Leave Requests"}
-              </h2>
-              <p className="text-xs text-slate-500">
-                {isAdmin
-                  ? "Approving a request automatically updates the employee's attendance record."
-                  : "Submit a request if you forgot to check in/out, arrived late with a valid reason, or took leave."}
-              </p>
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  {isAdmin
+                    ? "Danh sách Đơn giải trình & Xin nghỉ phép"
+                    : "Đơn giải trình & Nghỉ phép của tôi"}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Hiển thị <strong>{filteredRequests.length}</strong> / {requests.length} đơn từ
+                </p>
+              </div>
+              {!isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => openRequestModalForDay(selectedDate)}
+                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800"
+                >
+                  <Send size={14} />
+                  + Tạo đơn mới
+                </button>
+              )}
             </div>
-            {!isAdmin && (
-              <button
-                type="button"
-                onClick={() => openRequestModalForDay(selectedDate)}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+
+            <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-3">
+              <input
+                type="text"
+                value={requestSearch}
+                onChange={(e) => setRequestSearch(e.target.value)}
+                placeholder="Tìm theo tên NV, mã NV hoặc lý do..."
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+              />
+              <select
+                value={requestTypeFilter}
+                onChange={(e) => setRequestTypeFilter(e.target.value)}
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
               >
-                <Send size={14} />
-                + Submit New Request
-              </button>
-            )}
+                <option value="ALL">Tất cả loại đơn</option>
+                <option value="FORGOT_CHECKIN">Quên chấm công vào / ra</option>
+                <option value="LATE_EXPLANATION">Giải trình đi trễ</option>
+                <option value="EARLY_LEAVE">Giải trình về sớm</option>
+                <option value="LEAVE">Xin nghỉ phép có phép</option>
+              </select>
+              <select
+                value={requestStatusFilter}
+                onChange={(e) => setRequestStatusFilter(e.target.value)}
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ duyệt (PENDING)</option>
+                <option value="APPROVED">Đã duyệt (APPROVED)</option>
+                <option value="REJECTED">Từ chối (REJECTED)</option>
+              </select>
+            </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             {requestsLoading ? (
-              <LoadingState message="Loading requests..." />
-            ) : requests.length === 0 ? (
+              <LoadingState message="Đang tải danh sách đơn từ..." />
+            ) : filteredRequests.length === 0 ? (
               <div className="p-12 text-center text-sm text-slate-500">
-                No attendance or leave requests submitted yet.
+                {requests.length === 0
+                  ? "Chưa có đơn giải trình hoặc xin nghỉ phép nào được gửi."
+                  : "Không tìm thấy đơn từ nào khớp với bộ lọc hiện tại."}
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
-                {requests.map((item) => (
+                {filteredRequests.map((item) => (
                   <div
                     key={item.id}
-                    className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">
-                          {item.employee_name || `Employee #${item.employee_id}`}
+                        <span className="text-sm font-semibold text-slate-900">
+                          {item.employee_name || `Nhân viên #${item.employee_id}`}
                         </span>
                         {item.employee_code && (
                           <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">
                             {item.employee_code}
                           </span>
                         )}
-                        <span className="rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                           {REQUEST_TYPE_LABELS[item.request_type] || item.request_type}
                         </span>
                         <span
-                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                          className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${
                             item.status === "APPROVED"
-                              ? "bg-emerald-50 text-emerald-700"
+                              ? "bg-slate-900 text-white"
                               : item.status === "REJECTED"
-                                ? "bg-rose-50 text-rose-700"
-                                : "bg-amber-50 text-amber-700"
+                                ? "border border-slate-200 bg-white text-slate-400 line-through"
+                                : "border border-slate-300 bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {item.status}
+                          {item.status === "APPROVED"
+                            ? "ĐÃ DUYỆT"
+                            : item.status === "REJECTED"
+                              ? "TỪ CHỐI"
+                              : "CHỜ DUYỆT"}
                         </span>
                       </div>
-                      <p className="text-xs font-semibold text-slate-500">
-                        Date: <strong className="text-slate-700">{item.date}</strong>
+                      <p className="text-xs font-medium text-slate-500">
+                        Ngày: <strong className="text-slate-700">{item.date}</strong>
                         {item.requested_check_in && (
-                          <> · Requested In: {formatClock(item.requested_check_in)}</>
+                          <> · Giờ vào đề xuất: {formatClock(item.requested_check_in)}</>
                         )}
                         {item.requested_check_out && (
-                          <> · Requested Out: {formatClock(item.requested_check_out)}</>
+                          <> · Giờ ra đề xuất: {formatClock(item.requested_check_out)}</>
                         )}
                       </p>
                       <p className="text-sm text-slate-700">
-                        <span className="font-semibold text-slate-500">Reason: </span>
+                        <span className="font-medium text-slate-500">Lý do: </span>
                         {item.reason}
                       </p>
                       {item.admin_note && (
                         <p className="text-xs italic text-slate-500">
-                          Admin Note: {item.admin_note}
+                          Ghi chú Admin: {item.admin_note}
                         </p>
                       )}
                     </div>
 
-                    {isAdmin && item.status === "PENDING" && (
+                    {item.status === "PENDING" && (
                       <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={reviewingId === item.id}
-                          onClick={() => void handleReviewRequest(item.id, "APPROVED")}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
-                        >
-                          <CheckCircle2 size={14} />
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          disabled={reviewingId === item.id}
-                          onClick={() => void handleReviewRequest(item.id, "REJECTED")}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                        >
-                          <XCircle size={14} />
-                          Reject
-                        </button>
+                        {isAdmin ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={reviewingId === item.id}
+                              onClick={() => void handleReviewRequest(item.id, "APPROVED")}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                            >
+                              <CheckCircle2 size={14} />
+                              Duyệt
+                            </button>
+                            <button
+                              type="button"
+                              disabled={reviewingId === item.id}
+                              onClick={() => void handleReviewRequest(item.id, "REJECTED")}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              <XCircle size={14} />
+                              Từ chối
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={cancellingId === item.id}
+                            onClick={() => void handleCancelRequest(item.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                          >
+                            <XCircle size={14} />
+                            {cancellingId === item.id ? "Đang huỷ..." : "Huỷ đơn"}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1040,18 +1155,18 @@ export default function Attendance() {
       {activeTab === "calendar" && (
         <>
           {isAdmin && (
-            <div className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-end gap-3">
                 <label className="w-full sm:w-52">
-                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
-                    Department Filter
+                  <span className="mb-1.5 block text-xs font-semibold   text-slate-500">
+                    Lọc vị trí / quầy
                   </span>
                   <select
                     value={departmentFilter}
                     onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-slate-400"
                   >
-                    <option value="">All Departments</option>
+                    <option value="">Tất cả vị trí / quầy</option>
                     {departments.map((dept) => (
                       <option key={dept} value={dept}>
                         {dept}
@@ -1061,15 +1176,15 @@ export default function Attendance() {
                 </label>
 
                 <label className="w-full sm:w-72">
-                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
-                    Employee
+                  <span className="mb-1.5 block text-xs font-semibold   text-slate-500">
+                    Nhân sự
                   </span>
                   <select
                     value={employeeId}
                     onChange={(event) => chooseEmployee(event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-slate-400"
                   >
-                    <option value="">Select an employee</option>
+                    <option value="">-- Chọn nhân sự --</option>
                     {filteredEmployees.map((employee) => (
                       <option key={employee.id} value={employee.id}>
                         {employee.full_name} ({employee.employee_code})
@@ -1083,89 +1198,77 @@ export default function Attendance() {
                 <button
                   type="button"
                   onClick={handleExportCalendarCsv}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   <Download size={15} />
-                  Export Employee CSV
+                  Xuất CSV
                 </button>
               )}
             </div>
           )}
 
           {isAdmin && !employeeId ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
               <p className="font-semibold text-slate-700">
-                Choose an employee to view their calendar.
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Attendance records and the assigned shift load together.
+                Chọn một nhân sự để xem lịch chấm công.
               </p>
             </div>
           ) : loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <LoadingState message="Loading attendance calendar..." />
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <LoadingState message="Đang tải lịch chấm công..." />
             </div>
           ) : (
             calendar && (
               <>
                 {/* MONTHLY SUMMARY STRIP */}
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Present / Late Days
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-xs text-slate-500">
+                      Tổng giờ làm việc thực tế
                     </p>
-                    <p className="mt-1.5 text-2xl font-extrabold text-slate-900">
-                      {calendarSummary.presentDays + calendarSummary.lateDays}{" "}
-                      <span className="text-sm font-semibold text-slate-400">days</span>
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {calendarSummary.presentDays} on-time · {calendarSummary.lateDays} late
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Total Working Hours
-                    </p>
-                    <p className="mt-1.5 text-2xl font-extrabold text-blue-600">
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">
                       {formatMinutes(calendarSummary.workingMinutes)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Recorded shift hours
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-xs text-slate-500">
+                      Số phút trễ ca mở quầy
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">
+                      {calendarSummary.lateMinutes}p
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Total Late Minutes
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-xs text-slate-500">
+                      Giờ tăng ca (OT)
                     </p>
-                    <p className="mt-1.5 text-2xl font-extrabold text-amber-600">
-                      {calendarSummary.lateMinutes}m
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Beyond shift tolerance
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Overtime (OT)
-                    </p>
-                    <p className="mt-1.5 text-2xl font-extrabold text-emerald-600">
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">
                       {formatMinutes(calendarSummary.overtimeMinutes)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Extra hours after shift
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-xs text-slate-500">
+                      Ước tính lương theo giờ
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">
+                      {calculateFnbPayrollVnd(
+                        calendarSummary.workingMinutes,
+                        calendarSummary.overtimeMinutes
+                      ).toLocaleString("vi-VN")}
+                      đ
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
                   <div className="space-y-4">
-                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <h2 className="text-lg font-bold text-slate-900">
-                          {selectedEmployee?.full_name || "My attendance"}
+                        <h2 className="text-lg font-semibold text-slate-900">
+                          {selectedEmployee?.full_name || "Lịch chấm công của tôi"}
                         </h2>
                         <p className="text-sm text-slate-500">
-                          {monthNames[month - 1]} {year} · {calendar.total_days} days
+                          {monthNames[month - 1]} {year} · {calendar.total_days} ngày
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1173,15 +1276,15 @@ export default function Attendance() {
                           <button
                             type="button"
                             onClick={handleExportCalendarCsv}
-                            className="mr-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                            className="mr-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                           >
                             <Download size={14} />
-                            Export CSV
+                            Xuất CSV
                           </button>
                         )}
                         <button
                           type="button"
-                          aria-label="Previous month"
+                          aria-label="Tháng trước"
                           onClick={() => moveMonth(-1)}
                           className="h-9 w-9 rounded-lg border border-slate-200 text-lg text-slate-600 hover:bg-slate-50"
                         >
@@ -1194,13 +1297,13 @@ export default function Attendance() {
                             setMonth(now.getMonth() + 1);
                             setSelectedDate(todayIso());
                           }}
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                         >
-                          Today
+                          Hôm nay
                         </button>
                         <button
                           type="button"
-                          aria-label="Next month"
+                          aria-label="Tháng sau"
                           onClick={() => moveMonth(1)}
                           className="h-9 w-9 rounded-lg border border-slate-200 text-lg text-slate-600 hover:bg-slate-50"
                         >
@@ -1209,12 +1312,12 @@ export default function Attendance() {
                       </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
                       <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
                         {weekDays.map((day) => (
                           <div
                             key={day}
-                            className="px-2 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500"
+                            className="px-2 py-3 text-center text-xs font-semibold   text-slate-500"
                           >
                             {day}
                           </div>
@@ -1232,12 +1335,12 @@ export default function Attendance() {
                               className={`min-h-[112px] border-b border-r border-slate-100 p-2 ${
                                 !date ? "bg-slate-50/60" : ""
                               } ${day?.is_weekend ? "bg-slate-50" : ""} ${
-                                day ? "cursor-pointer hover:bg-blue-50/40" : ""
+                                day ? "cursor-pointer hover:bg-slate-50" : ""
                               }`}
                             >
                               {day && (
                                 <div
-                                  className={`flex h-full min-h-[96px] flex-col rounded-xl border p-2 ${statusClass(
+                                  className={`flex h-full min-h-[96px] flex-col rounded-md border p-2 ${statusClass(
                                     day.status,
                                     future,
                                     day.has_record,
@@ -1245,33 +1348,37 @@ export default function Attendance() {
                                   )}`}
                                 >
                                   <div className="flex items-start justify-between gap-2">
-                                    <span className="text-sm font-bold">
+                                    <span className="text-sm font-semibold">
                                       {Number(date.slice(-2))}
                                     </span>
-                                    <span className="text-[10px] font-bold uppercase">
+                                    <span className="text-[10px] font-semibold ">
                                       {future
-                                        ? "Upcoming"
+                                        ? "Sắp tới"
                                         : day.has_record
-                                          ? day.status
+                                          ? day.status === "PRESENT"
+                                            ? "Đúng giờ"
+                                            : day.status === "LATE"
+                                              ? "Đi trễ"
+                                              : "Vắng"
                                           : day.is_weekend
-                                            ? "Weekend"
-                                            : "No record"}
+                                            ? "Nghỉ ca"
+                                            : "Chưa có"}
                                     </span>
                                   </div>
                                   <div className="mt-auto text-xs">
                                     {future ? (
-                                      <span>Not started</span>
+                                      <span>Chưa diễn ra</span>
                                     ) : (
                                       <>
                                         <div>
-                                          In <strong>{formatClock(day.check_in)}</strong>
+                                          Vào <strong>{formatClock(day.check_in)}</strong>
                                         </div>
                                         <div>
-                                          Out <strong>{formatClock(day.check_out)}</strong>
+                                          Ra <strong>{formatClock(day.check_out)}</strong>
                                         </div>
                                         {day.working_minutes ? (
                                           <div className="mt-0.5 text-[10px] font-semibold opacity-80">
-                                            Work: {formatMinutes(day.working_minutes)}
+                                            Công: {formatMinutes(day.working_minutes)}
                                           </div>
                                         ) : null}
                                       </>
@@ -1285,99 +1392,85 @@ export default function Attendance() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-500">
+                    <div className="flex flex-wrap gap-3 text-xs font-medium text-slate-500">
                       <span>
-                        <i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                        Present
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-slate-900" />
+                        Đúng giờ
                       </span>
                       <span>
-                        <i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
-                        Late
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full border border-slate-400 bg-slate-200" />
+                        Đi trễ
                       </span>
                       <span>
-                        <i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-rose-400" />
-                        Absent
-                      </span>
-                      <span>
-                        <i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-slate-300" />
-                        No record / weekend
-                      </span>
-                      <span>
-                        <i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
-                        Upcoming
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full border border-slate-300 bg-white" />
+                        Vắng / Chưa chấm công
                       </span>
                     </div>
                   </div>
 
                   {/* SELECTED DAY SIDEBAR */}
-                  <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <aside className="rounded-lg border border-slate-200 bg-white p-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <CalendarDays size={20} />
-                      </div>
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                          Selected day
+                        <p className="text-xs font-semibold   text-slate-400">
+                          Ngày đang chọn
                         </p>
-                        <h2 className="mt-1 text-lg font-bold text-slate-900">
+                        <h2 className="mt-1 text-lg font-semibold text-slate-900">
                           {selectedLabel}
                         </h2>
                       </div>
                     </div>
 
                     {scheduleLoading ? (
-                      <p className="mt-6 text-sm text-slate-500">
-                        Loading assigned shift...
-                      </p>
+                      <p className="mt-4 text-xs text-slate-500">Đang tải...</p>
                     ) : scheduleError ? (
-                      <p className="mt-6 text-sm text-rose-600">{scheduleError}</p>
+                      <p className="mt-6 text-sm text-slate-600">{scheduleError}</p>
                     ) : daySchedule?.schedule ? (
                       <>
                         <p className="mt-6 text-sm font-semibold text-slate-500">
                           {daySchedule.schedule.name}
                         </p>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        <p className="text-xs text-slate-400">
                           {daySchedule.schedule.code}
                         </p>
                       </>
                     ) : (
-                      <h3 className="mt-6 text-base font-bold text-slate-900">
-                        No shift assigned
+                      <h3 className="mt-6 text-base font-semibold text-slate-900">
+                        Chưa gán ca làm việc
                       </h3>
                     )}
 
                     {shift ? (
-                      <div className="mt-5 grid gap-3">
-                        <div className="rounded-xl bg-slate-50 p-4">
-                          <Clock3 className="text-blue-600" size={18} />
-                          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Shift
+                      <div className="mt-4 grid gap-3">
+                        <div className="rounded-md bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">
+                            Ca làm việc
                           </p>
-                          <p className="mt-1 font-bold text-slate-900">{shift.name}</p>
+                          <p className="mt-1 font-semibold text-slate-900">{shift.name}</p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Hours
+                        <div className="rounded-md bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">
+                            Khung giờ
                           </p>
-                          <p className="mt-2 font-bold text-slate-900">
+                          <p className="mt-1 font-semibold text-slate-900">
                             {formatShiftTime(shift.start_time)} -{" "}
                             {formatShiftTime(shift.end_time)}
                           </p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Late tolerance
+                        <div className="rounded-md bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">
+                            Thời gian cho phép trễ
                           </p>
-                          <p className="mt-2 font-bold text-slate-900">
-                            {shift.late_tolerance_minutes} minutes
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {shift.late_tolerance_minutes} phút
                           </p>
                         </div>
                       </div>
                     ) : (
                       !scheduleLoading &&
                       !scheduleError && (
-                        <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                          There is no active schedule for this date.
+                        <div className="mt-5 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                          Không có lịch làm việc cho ngày này.
                         </div>
                       )
                     )}
@@ -1385,49 +1478,53 @@ export default function Attendance() {
                     {selectedDay && selectedDay.date <= currentToday && (
                       <div className="mt-5 space-y-2 border-t border-slate-100 pt-5 text-sm text-slate-600">
                         <div className="flex justify-between">
-                          <span>Check-in:</span>
+                          <span>Giờ vào:</span>
                           <strong>{formatClock(selectedDay.check_in)}</strong>
                         </div>
                         <div className="flex justify-between">
-                          <span>Check-out:</span>
+                          <span>Giờ ra:</span>
                           <strong>{formatClock(selectedDay.check_out)}</strong>
                         </div>
                         <div className="flex justify-between">
-                          <span>Status:</span>
+                          <span>Trạng thái:</span>
                           <strong>
                             {selectedDay.has_record
-                              ? selectedDay.status
+                              ? selectedDay.status === "PRESENT"
+                                ? "Đúng giờ"
+                                : selectedDay.status === "LATE"
+                                  ? "Đi trễ"
+                                  : "Vắng"
                               : selectedDay.is_weekend
-                                ? "Weekend"
-                                : "No record"}
+                                ? "Nghỉ ca"
+                                : "Chưa có dữ liệu"}
                           </strong>
                         </div>
                         {selectedDay.has_record && (
                           <>
                             <div className="flex justify-between">
-                              <span>Working Duration:</span>
-                              <strong className="text-blue-600">
+                              <span>Thời gian làm việc:</span>
+                              <strong className="text-slate-900">
                                 {formatMinutes(selectedDay.working_minutes)}
                               </strong>
                             </div>
                             {(selectedDay.late_minutes || 0) > 0 && (
-                              <div className="flex justify-between text-amber-700">
-                                <span>Late Arrival:</span>
-                                <strong>{selectedDay.late_minutes} mins</strong>
+                              <div className="flex justify-between text-slate-700">
+                                <span>Số phút đi trễ:</span>
+                                <strong>{selectedDay.late_minutes} phút</strong>
                               </div>
                             )}
                             {(selectedDay.overtime_minutes || 0) > 0 && (
-                              <div className="flex justify-between text-emerald-700">
-                                <span>Overtime (OT):</span>
+                              <div className="flex justify-between text-slate-700">
+                                <span>Tăng ca:</span>
                                 <strong>
                                   {formatMinutes(selectedDay.overtime_minutes)}
                                 </strong>
                               </div>
                             )}
                             {selectedDay.face_similarity != null && (
-                              <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                                <span className="inline-flex items-center gap-1 font-semibold">
-                                  <ShieldCheck size={14} /> AI Biometric Match
+                              <div className="mt-2 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                                <span className="font-semibold">
+                                  Độ khớp khuôn mặt
                                 </span>
                                 <strong>
                                   {(selectedDay.face_similarity * 100).toFixed(1)}%
@@ -1443,9 +1540,9 @@ export default function Attendance() {
                       <button
                         type="button"
                         onClick={() => openEditor(selectedDay)}
-                        className="mt-5 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                        className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                       >
-                        {selectedDay.has_record ? "Edit record" : "Add record"}
+                        {selectedDay.has_record ? "Sửa" : "Thêm"}
                       </button>
                     )}
 
@@ -1453,10 +1550,10 @@ export default function Attendance() {
                       <button
                         type="button"
                         onClick={() => openRequestModalForDay(selectedDay.date)}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       >
                         <Send size={15} />
-                        Submit Explanation / Leave
+                        Gửi đơn
                       </button>
                     )}
                   </aside>
@@ -1472,16 +1569,13 @@ export default function Attendance() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <form
             onSubmit={saveDay}
-            className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-lg space-y-4 rounded-lg bg-white p-4 shadow-xl"
           >
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  {editingDay.has_record ? "Edit attendance" : "Add attendance"}
+                <h2 className="text-base font-semibold text-slate-900">
+                  {editingDay.has_record ? "Sửa chấm công" : "Thêm chấm công"}
                 </h2>
-                <p className="text-sm text-slate-500">
-                  {form.date} · {selectedEmployee?.full_name}
-                </p>
               </div>
               <button
                 type="button"
@@ -1493,8 +1587,8 @@ export default function Attendance() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
-                <span className="mb-1 block text-sm font-semibold text-slate-700">
-                  Check-in
+                <span className="mb-1 block text-xs text-slate-500">
+                  Giờ vào
                 </span>
                 <input
                   type="datetime-local"
@@ -1502,12 +1596,12 @@ export default function Attendance() {
                   onChange={(event) =>
                     setForm({ ...form, check_in: event.target.value })
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 />
               </label>
               <label>
-                <span className="mb-1 block text-sm font-semibold text-slate-700">
-                  Check-out
+                <span className="mb-1 block text-xs text-slate-500">
+                  Giờ ra
                 </span>
                 <input
                   type="datetime-local"
@@ -1515,13 +1609,13 @@ export default function Attendance() {
                   onChange={(event) =>
                     setForm({ ...form, check_out: event.target.value })
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 />
               </label>
             </div>
             <label className="block">
-              <span className="mb-1 block text-sm font-semibold text-slate-700">
-                Status
+              <span className="mb-1 block text-xs text-slate-500">
+                Trạng thái
               </span>
               <select
                 value={form.status}
@@ -1531,11 +1625,11 @@ export default function Attendance() {
                     status: event.target.value as AttendanceStatus,
                   })
                 }
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
               >
-                <option value="PRESENT">PRESENT</option>
-                <option value="LATE">LATE</option>
-                <option value="ABSENT">ABSENT</option>
+                <option value="PRESENT">Đúng giờ</option>
+                <option value="LATE">Đi trễ</option>
+                <option value="ABSENT">Vắng mặt</option>
               </select>
             </label>
             <div className="flex justify-between pt-2">
@@ -1544,9 +1638,9 @@ export default function Attendance() {
                   type="button"
                   onClick={() => void removeDay()}
                   disabled={saving}
-                  className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                  className="rounded-md px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
                 >
-                  Delete
+                  Xoá
                 </button>
               ) : (
                 <span />
@@ -1555,16 +1649,16 @@ export default function Attendance() {
                 <button
                   type="button"
                   onClick={() => setEditingDay(null)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                  className="rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
                 >
-                  Cancel
+                  Huỷ
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Save"}
+                  {saving ? "Đang lưu..." : "Lưu"}
                 </button>
               </div>
             </div>
@@ -1577,16 +1671,13 @@ export default function Attendance() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <form
             onSubmit={submitAttendanceRequest}
-            className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-lg space-y-4 rounded-lg bg-white p-4 shadow-xl"
           >
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Submit Attendance Explanation / Leave
+                <h2 className="text-base font-semibold text-slate-900">
+                  Gửi đơn giải trình / nghỉ phép
                 </h2>
-                <p className="text-sm text-slate-500">
-                  Your request will be sent to HR / Admin for review.
-                </p>
               </div>
               <button
                 type="button"
@@ -1599,8 +1690,8 @@ export default function Attendance() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
-                <span className="mb-1 block text-sm font-semibold text-slate-700">
-                  Date
+                <span className="mb-1 block text-xs text-slate-500">
+                  Ngày áp dụng
                 </span>
                 <input
                   type="date"
@@ -1609,13 +1700,13 @@ export default function Attendance() {
                   onChange={(e) =>
                     setRequestForm({ ...requestForm, date: e.target.value })
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 />
               </label>
 
               <label>
-                <span className="mb-1 block text-sm font-semibold text-slate-700">
-                  Request Type
+                <span className="mb-1 block text-xs text-slate-500">
+                  Loại đơn từ
                 </span>
                 <select
                   value={requestForm.request_type}
@@ -1625,12 +1716,12 @@ export default function Attendance() {
                       request_type: e.target.value as AttendanceRequestType,
                     })
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 >
-                  <option value="FORGOT_CHECKIN">Forgot Check-in / Out</option>
-                  <option value="LATE_EXPLANATION">Late Arrival Explanation</option>
-                  <option value="EARLY_LEAVE">Early Leave Explanation</option>
-                  <option value="LEAVE">Authorized Leave (Day Off)</option>
+                  <option value="FORGOT_CHECKIN">Quên chấm công vào / ra</option>
+                  <option value="LATE_EXPLANATION">Giải trình đi trễ</option>
+                  <option value="EARLY_LEAVE">Giải trình về sớm</option>
+                  <option value="LEAVE">Xin nghỉ phép</option>
                 </select>
               </label>
             </div>
@@ -1638,8 +1729,8 @@ export default function Attendance() {
             {requestForm.request_type !== "LEAVE" && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <label>
-                  <span className="mb-1 block text-sm font-semibold text-slate-700">
-                    Actual Check-in Time
+                  <span className="mb-1 block text-xs text-slate-500">
+                    Giờ vào thực tế
                   </span>
                   <input
                     type="datetime-local"
@@ -1650,12 +1741,12 @@ export default function Attendance() {
                         requested_check_in: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
                 <label>
-                  <span className="mb-1 block text-sm font-semibold text-slate-700">
-                    Actual Check-out Time
+                  <span className="mb-1 block text-xs text-slate-500">
+                    Giờ ra thực tế
                   </span>
                   <input
                     type="datetime-local"
@@ -1666,91 +1757,61 @@ export default function Attendance() {
                         requested_check_out: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
               </div>
             )}
 
-            <div className="space-y-2">
-              <span className="block text-xs font-bold uppercase tracking-wide text-slate-500">
-                Mẫu lý do nhanh ngành F&amp;B (1-Click):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  {
-                    label: "Đông khách giờ cao điểm (Quên Check-in)",
-                    type: "FORGOT_CHECKIN" as AttendanceRequestType,
-                    reason:
-                      "[F&B Rush Hour] Đông khách giờ cao điểm tại quầy Pha Chế / Thu Ngân nên chưa kịp quét mặt check-in đầu ca.",
-                  },
-                  {
-                    label: "Xin đổi ca xoay (Shift Swap)",
-                    type: "LATE_EXPLANATION" as AttendanceRequestType,
-                    reason:
-                      "[Đổi Ca F&B] Đã báo Cửa hàng trưởng đổi từ Ca Chiều sang Ca Sáng với đồng nghiệp cùng bộ phận.",
-                  },
-                  {
-                    label: "Trễ ca xoay 15p (Mưa / Kẹt xe)",
-                    type: "LATE_EXPLANATION" as AttendanceRequestType,
-                    reason:
-                      "[Ca Xoay F&B] Đến cửa hàng trễ 15 phút do mưa lớn và kẹt xe giờ giao ca.",
-                  },
-                  {
-                    label: "Tăng ca đóng quầy (Closing Shift)",
-                    type: "FORGOT_CHECKIN" as AttendanceRequestType,
-                    reason:
-                      "[Closing Shift] Ở lại hỗ trợ kiểm kê nguyên liệu và vệ sinh đóng quầy Bếp/Bar sau 22:00.",
-                  },
-                ].map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() =>
-                      setRequestForm((prev) => ({
-                        ...prev,
-                        request_type: preset.type,
-                        reason: preset.reason,
-                      }))
-                    }
-                    className="rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-left text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100"
-                  >
-                    + {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <label className="block">
-              <span className="mb-1 block text-sm font-semibold text-slate-700">
-                Reason / Explanation
+              <span className="mb-1 block text-xs text-slate-500">
+                Lý do giải trình
               </span>
               <textarea
                 rows={3}
                 required
-                placeholder="Explain why you missed check-in, arrived late, or need leave..."
+                placeholder="Nhập lý do thực tế tại quầy..."
                 value={requestForm.reason}
                 onChange={(e) =>
                   setRequestForm({ ...requestForm, reason: e.target.value })
                 }
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
               />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[
+                  "Quên check-out do đông khách cuối ca",
+                  "Đổi ca / Làm thay ca",
+                  "Tăng ca dọn quầy đóng cửa",
+                  "Vào ca trễ có báo Quản lý ca",
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() =>
+                      setRequestForm((prev) => ({ ...prev, reason: preset }))
+                    }
+                    className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
             </label>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setShowRequestModal(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                className="rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
               >
-                Cancel
+                Huỷ
               </button>
               <button
                 type="submit"
                 disabled={requestSubmitting}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
               >
-                {requestSubmitting ? "Submitting..." : "Submit Request"}
+                {requestSubmitting ? "Đang gửi..." : "Gửi"}
               </button>
             </div>
           </form>

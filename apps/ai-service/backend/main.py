@@ -40,11 +40,12 @@ from models import (
     AnalyzeRequest, AnalyzeResponse, EmotionScores,
     LegacyEnrollRequest, LegacyRecognizeCandidate, LegacyRecognizeRequest,
     BackendRecognitionResponse, RecognitionFeedbackRequest,
+    RecognitionConfigResponse, RecognitionConfigUpdateRequest,
     RecognitionMetricsResponse,
 )
 from liveness_engine import LivenessEngine
 from session_manager import session_manager, SPOOF_FRAMES_REQUIRED
-from face_recognition_engine import FaceRecognitionEngine, SIMILARITY_THRESHOLD
+from face_recognition_engine import FaceRecognitionEngine, SIMILARITY_THRESHOLD, MIN_FACE_AREA_RATIO
 from face_db import face_db
 from emotion_engine import blendshapes_to_emotions, dominant_emotion
 from rppg_engine import RPPGEngine
@@ -95,6 +96,12 @@ rec_engine      = FaceRecognitionEngine()
 photo_validator = PhotoValidator()
 recognition_metrics = RecognitionMetrics()
 
+_recognition_config: dict[str, float] = {
+    "default_threshold": 0.5,
+    "min_face_area_ratio": MIN_FACE_AREA_RATIO,
+    "min_margin": 0.05,
+}
+
 # Per-session rPPG engines — keyed by session_id, cleaned up on session end
 rppg_engines: dict[str, RPPGEngine] = {}
 
@@ -119,6 +126,40 @@ def recognition_metrics_snapshot():
 def record_recognition_feedback(body: RecognitionFeedbackRequest):
     recognition_metrics.record_feedback(false_positive=body.false_positive)
     return recognition_metrics.snapshot()
+
+
+@app.get("/config/recognition", response_model=RecognitionConfigResponse)
+def get_recognition_config():
+    return RecognitionConfigResponse(**_recognition_config)
+
+
+@app.put("/config/recognition", response_model=RecognitionConfigResponse)
+def update_recognition_config(body: RecognitionConfigUpdateRequest):
+    if body.default_threshold is not None:
+        if not (0.35 <= body.default_threshold <= 0.85):
+            raise HTTPException(
+                status_code=400,
+                detail="default_threshold must be between 0.35 and 0.85",
+            )
+        _recognition_config["default_threshold"] = round(body.default_threshold, 4)
+
+    if body.min_face_area_ratio is not None:
+        if not (0.01 <= body.min_face_area_ratio <= 0.30):
+            raise HTTPException(
+                status_code=400,
+                detail="min_face_area_ratio must be between 0.01 and 0.30",
+            )
+        _recognition_config["min_face_area_ratio"] = round(body.min_face_area_ratio, 4)
+
+    if body.min_margin is not None:
+        if not (0.01 <= body.min_margin <= 0.25):
+            raise HTTPException(
+                status_code=400,
+                detail="min_margin must be between 0.01 and 0.25",
+            )
+        _recognition_config["min_margin"] = round(body.min_margin, 4)
+
+    return RecognitionConfigResponse(**_recognition_config)
 
 
 # ── REST endpoints ────────────────────────────────────────────────────────────
@@ -664,11 +705,18 @@ def legacy_enroll(body: LegacyEnrollRequest):
     result = rec_engine.analyze(img_bytes)
     if not result.face_detected or result.embedding is None:
         return {"success": False, "error_code": "NO_FACE", "message": "No face detected"}
+    if result.face_area_ratio > 0 and result.face_area_ratio < _recognition_config["min_face_area_ratio"]:
+        return {
+            "success": False,
+            "error_code": "FACE_TOO_SMALL",
+            "message": "Khuôn mặt quá nhỏ, vui lòng đứng gần camera hơn",
+        }
     return {
         "success": True,
         "embedding": result.embedding.astype(float).tolist(),
         "bbox": result.bbox,
         "detection_confidence": result.detection_score,
+        "face_area_ratio": result.face_area_ratio,
     }
 
 
@@ -795,6 +843,13 @@ def legacy_recognize(body: LegacyRecognizeRequest):
         return _recognition_error(422, "NO_FACE", "No face detected", True)
     if result.face_count > 1:
         return _recognition_error(422, "MULTIPLE_FACES", "Multiple faces detected", True)
+    if result.face_area_ratio > 0 and result.face_area_ratio < _recognition_config["min_face_area_ratio"]:
+        return _recognition_error(
+            422,
+            "FACE_TOO_SMALL",
+            "Khuôn mặt quá nhỏ, vui lòng đứng gần camera hơn",
+            True,
+        )
 
     if body.fast_mode:
         passive_liveness = engine.process_frame(img_bytes)
@@ -807,8 +862,19 @@ def legacy_recognize(body: LegacyRecognizeRequest):
     ranked_matches = _find_best_candidate(query, body.candidates)
     best_id, best_similarity = ranked_matches[0] if ranked_matches else (None, -1.0)
 
-    if best_id is not None and best_similarity >= body.threshold:
-        if _is_ambiguous_match(ranked_matches, body.min_margin):
+    effective_threshold = (
+        _recognition_config["default_threshold"]
+        if body.threshold == 0.5
+        else body.threshold
+    )
+    effective_margin = (
+        _recognition_config["min_margin"]
+        if body.min_margin == 0.05
+        else body.min_margin
+    )
+
+    if best_id is not None and best_similarity >= effective_threshold:
+        if _is_ambiguous_match(ranked_matches, effective_margin):
             return _recognition_error(
                 422,
                 "AMBIGUOUS_MATCH",

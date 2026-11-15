@@ -3,16 +3,20 @@ import { describe, expect, it } from "vitest";
 import { matchShiftTemplate, SHIFT_TEMPLATES } from "./shiftTemplates";
 
 describe("shift templates", () => {
-  it("matches day office hours", () => {
-    expect(matchShiftTemplate("08:00:00", "17:00:00")).toBe("day");
-    expect(SHIFT_TEMPLATES.day.start).toBe("08:00");
+  it("matches morning opening shift hours", () => {
+    expect(matchShiftTemplate("06:30:00", "14:30:00")).toBe("morning");
+    expect(SHIFT_TEMPLATES.morning.start).toBe("06:30");
   });
 
-  it("matches night shift hours", () => {
-    expect(matchShiftTemplate("16:00", "23:00")).toBe("night");
+  it("matches evening closing shift hours", () => {
+    expect(matchShiftTemplate("14:30", "22:30")).toBe("evening");
+  });
+
+  it("matches peak part-time shift hours", () => {
+    expect(matchShiftTemplate("11:00", "15:00")).toBe("peak");
   });
 
   it("treats late starts as night", () => {
-    expect(matchShiftTemplate("18:00:00", "02:00:00")).toBe("night");
+    expect(matchShiftTemplate("18:00:00", "23:00:00")).toBe("night");
   });
 });

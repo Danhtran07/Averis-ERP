@@ -23,6 +23,7 @@ from app.models.attendance_request import (
 )
 from app.models.employee import Employee
 from app.models.face_data import FaceData
+from app.models.schedule_assignment import ScheduleAssignment
 from app.models.user import User, UserRole
 from app.schemas.attendance import (
     AIBiometricsMetricsResponse,
@@ -174,11 +175,27 @@ def get_attendance_calendar(
     for day_number in range(1, total_days + 1):
         current_date = date(year, month, day_number)
         record = records_by_date.get(current_date)
+        has_active_assignment = (
+            db.query(ScheduleAssignment)
+            .filter(
+                ScheduleAssignment.employee_id == employee.id,
+                ScheduleAssignment.is_active.is_(True),
+                ScheduleAssignment.effective_from <= current_date,
+                (
+                    ScheduleAssignment.effective_to.is_(None)
+                    | (ScheduleAssignment.effective_to >= current_date)
+                ),
+            )
+            .first()
+            is not None
+        )
+        scheduled_shift = resolve_shift(db, employee.id, current_date)
+        is_day_off = has_active_assignment and (scheduled_shift is None)
         days.append(
             AttendanceCalendarDay(
                 date=current_date,
                 day_of_week=current_date.isoweekday(),
-                is_weekend=current_date.weekday() >= 5,
+                is_weekend=is_day_off,
                 attendance_id=record.id if record else None,
                 status=record.status if record else AttendanceStatus.ABSENT,
                 has_record=record is not None,
@@ -208,20 +225,31 @@ def get_attendance_calendar(
     response_model=list[AttendanceResponse],
 )
 def get_attendance(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    status_filter: AttendanceStatus | None = Query(default=None, alias="status"),
+    employee_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    query = db.query(Attendance)
+
     if current_user.role == UserRole.EMPLOYEE:
         employee = _get_employee_for_current_user(db, current_user)
         if employee is None:
             return []
-        return (
-            db.query(Attendance)
-            .filter(Attendance.employee_id == employee.id)
-            .all()
-        )
+        query = query.filter(Attendance.employee_id == employee.id)
+    elif employee_id is not None:
+        query = query.filter(Attendance.employee_id == employee_id)
 
-    return db.query(Attendance).all()
+    if start_date is not None:
+        query = query.filter(Attendance.date >= start_date)
+    if end_date is not None:
+        query = query.filter(Attendance.date <= end_date)
+    if status_filter is not None:
+        query = query.filter(Attendance.status == status_filter)
+
+    return query.order_by(Attendance.date.desc(), Attendance.id.desc()).all()
 
 
 @router.post(
@@ -271,6 +299,8 @@ def recognize_attendance(
 
     if recognition.error_code == "NO_FACE":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No face detected")
+    if recognition.error_code == "FACE_TOO_SMALL":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Face is too far from the camera")
     if recognition.error_code == "MULTIPLE_FACES":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Multiple faces detected")
     if recognition.error_code == "FACE_NOT_RECOGNIZED":
@@ -746,6 +776,46 @@ def review_attendance_request(
     db.commit()
     db.refresh(item)
     return _serialize_request(item)
+
+
+@router.delete(
+    "/requests/{request_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_attendance_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _ensure_requests_table(db)
+    item = (
+        db.query(AttendanceRequest)
+        .filter(AttendanceRequest.id == request_id)
+        .first()
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attendance request not found",
+        )
+
+    if current_user.role == UserRole.EMPLOYEE:
+        employee = _get_employee_for_current_user(db, current_user)
+        if employee is None or item.employee_id != employee.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only cancel your own attendance requests",
+            )
+
+    if item.status != AttendanceRequestStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending attendance requests can be cancelled",
+        )
+
+    db.delete(item)
+    db.commit()
+    return None
 
 
 @router.get(

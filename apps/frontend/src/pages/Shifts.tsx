@@ -30,7 +30,7 @@ export default function Shifts() {
 
   useEffect(() => { void loadShifts(); }, []);
 
-  if (loading) return <LoadingState message="Loading shifts..." />;
+  if (loading) return <LoadingState message="Đang tải ca làm việc..." />;
   if (error) return <ErrorState message={error} onRetry={() => void loadShifts()} />;
 
   const activeCount = shifts.filter((shift) => shift.is_active).length;
@@ -40,22 +40,19 @@ export default function Shifts() {
     <section className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Work configuration</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Shifts</h1>
-          <p className="mt-1 text-sm text-slate-500">Define the time windows and grace periods used by attendance policy.</p>
+          <h1 className="text-xl font-semibold text-slate-900">Ca làm việc</h1>
         </div>
-        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">{activeCount} active shift{activeCount === 1 ? "" : "s"}</div>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><Clock3 className="text-blue-600" size={20} /><p className="mt-4 text-2xl font-bold text-slate-900">{shifts.length}</p><p className="text-sm text-slate-500">Configured shifts</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><ShieldCheck className="text-emerald-600" size={20} /><p className="mt-4 text-2xl font-bold text-slate-900">{activeCount}</p><p className="text-sm text-slate-500">Available for assignment</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><MoonStar className="text-violet-600" size={20} /><p className="mt-4 text-2xl font-bold text-slate-900">{overnightCount}</p><p className="text-sm text-slate-500">Overnight shifts</p></div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Tổng số ca</div><div className="mt-1 text-2xl font-semibold text-slate-900">{shifts.length}</div></div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Đang hoạt động</div><div className="mt-1 text-2xl font-semibold text-slate-900">{activeCount}</div></div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Ca qua đêm</div><div className="mt-1 text-2xl font-semibold text-slate-900">{overnightCount}</div></div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">Shift library</h2><p className="mt-1 text-sm text-slate-500">Policy values are captured in attendance records when employees check in.</p></div>
-        {shifts.length === 0 ? <div className="px-5 py-16 text-center text-sm text-slate-500">No shifts have been configured yet.</div> : <div className="divide-y divide-slate-100">{shifts.map((shift) => <article key={shift.id} className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-4"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Clock3 size={20} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-slate-900">{shift.name}</h3><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">{shift.code}</span>{!shift.is_active && <span className="rounded-md bg-rose-50 px-2 py-1 text-[10px] font-bold uppercase text-rose-600">Inactive</span>}</div><p className="mt-1 text-sm text-slate-500">{formatTime(shift.start_time)} - {formatTime(shift.end_time)}{shift.is_overnight ? " · overnight" : ""}</p></div></div><div className="grid grid-cols-2 gap-3 text-sm md:min-w-[260px]"><div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs text-slate-400">Late tolerance</p><p className="mt-1 font-bold text-slate-800">{shift.late_tolerance_minutes} min</p></div><div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs text-slate-400">Early check-in</p><p className="mt-1 font-bold text-slate-800">{shift.early_checkin_minutes} min</p></div></div></article>)}</div>}
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-semibold text-slate-900">Danh mục ca làm việc</h2></div>
+        {shifts.length === 0 ? <div className="px-5 py-16 text-center text-sm text-slate-500">Chưa có ca làm việc nào.</div> : <div className="divide-y divide-slate-100">{shifts.map((shift) => <article key={shift.id} className="flex flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-900">{shift.name}</h3><span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{shift.code}</span>{!shift.is_active && <span className="rounded-md bg-rose-50 px-2 py-0.5 text-xs text-rose-600">Ngưng</span>}</div><p className="mt-1 text-sm text-slate-500">{formatTime(shift.start_time)} - {formatTime(shift.end_time)}{shift.is_overnight ? " · ca qua đêm" : ""}</p></div><div className="grid grid-cols-2 gap-3 text-sm md:min-w-[260px]"><div className="rounded-md bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Cho phép trễ</p><p className="mt-0.5 font-semibold text-slate-800">{shift.late_tolerance_minutes} phút</p></div><div className="rounded-md bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Mở chấm công sớm</p><p className="mt-0.5 font-semibold text-slate-800">{shift.early_checkin_minutes} phút</p></div></div></article>)}</div>}
       </div>
     </section>
   );

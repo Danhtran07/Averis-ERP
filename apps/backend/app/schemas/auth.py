@@ -1,13 +1,14 @@
-from datetime import datetime
-
-from pydantic import BaseModel, field_serializer
-
-from app.core.timezone import to_vietnam_time
+from pydantic import BaseModel
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class UserResponse(BaseModel):

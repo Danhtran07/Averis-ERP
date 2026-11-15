@@ -208,6 +208,18 @@ class RecognitionFeedbackRequest(BaseModel):
     false_positive: bool
 
 
+class RecognitionConfigResponse(BaseModel):
+    default_threshold: float
+    min_face_area_ratio: float
+    min_margin: float
+
+
+class RecognitionConfigUpdateRequest(BaseModel):
+    default_threshold: Optional[float] = None
+    min_face_area_ratio: Optional[float] = None
+    min_margin: Optional[float] = None
+
+
 class RecognitionMetricsResponse(BaseModel):
     total_requests: int
     matched_requests: int

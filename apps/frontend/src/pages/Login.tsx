@@ -1,82 +1,21 @@
-import {
-  FormEvent,
-  useState,
-} from "react";
-import { Check, LockKeyhole, CircleAlert, Sparkles, ShieldCheck, UserRound } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { CircleAlert, LockKeyhole } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import {
-  useNavigate,
-} from "react-router-dom";
-
-import {
-  login,
-  seedDemoData,
-} from "../api/auth.api";
-
-import {
-  getApiErrorMessage,
-} from "../api/error";
-
+import { login } from "../api/auth.api";
+import { getApiErrorMessage } from "../api/error";
 
 export default function Login() {
   const navigate = useNavigate();
 
-  const [username, setUsername] =
-    useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [password, setPassword] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-  const [seeding, setSeeding] = useState(false);
-  const [seedMessage, setSeedMessage] = useState("");
-
-  async function handleSeedDemo(autoFillRole?: "ADMIN" | "EMPLOYEE") {
-    if (seeding || loading) return;
-    setError("");
-    setSeedMessage("");
-    setSeeding(true);
-    try {
-      const result = await seedDemoData();
-      if (autoFillRole === "ADMIN") {
-        setUsername(result.admin_credentials.username);
-        setPassword(result.admin_credentials.password);
-        setSeedMessage("Demo data ready! Admin credentials filled — click Sign in.");
-      } else if (autoFillRole === "EMPLOYEE") {
-        setUsername(result.employee_credentials.username);
-        setPassword(result.employee_credentials.password);
-        setSeedMessage("Demo data ready! Employee credentials filled — click Sign in.");
-      } else {
-        setUsername(result.admin_credentials.username);
-        setPassword(result.admin_credentials.password);
-        setSeedMessage(
-          `Initialized ${result.employees_total} demo employees, shifts, schedules & attendance logs!`
-        );
-      }
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to initialize demo data."));
-    } finally {
-      setSeeding(false);
-    }
-  }
-
-
-  /* ==========================================================
-     LOGIN
-  ========================================================== */
-
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     setError("");
-
-    /* Prevent duplicate requests */
 
     if (loading) {
       return;
@@ -90,843 +29,124 @@ export default function Login() {
         password,
       });
 
-      /* ------------------------------------------------------
-         Save JWT
-      ------------------------------------------------------ */
-
-      localStorage.setItem(
-        "access_token",
-        response.access_token
-      );
-
-      /* ------------------------------------------------------
-         Save user
-      ------------------------------------------------------ */
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify(response.user)
-      );
-
-      /* ------------------------------------------------------
-         Redirect
-      ------------------------------------------------------ */
+      localStorage.setItem("access_token", response.access_token);
+      localStorage.setItem("user", JSON.stringify(response.user));
 
       navigate("/dashboard", {
         replace: true,
       });
-
-    } catch (error) {
-
-      console.error(
-        "Login failed:",
-        error
-      );
-
-      setError(
-        getApiErrorMessage(error)
-      );
-
+    } catch (err) {
+      console.error("Login failed:", err);
+      setError(getApiErrorMessage(err));
     } finally {
-
       setLoading(false);
-
     }
   }
 
-
-  /* ==========================================================
-     RENDER
-  ========================================================== */
-
   return (
-    <div
-      className="
-        min-h-screen
-        flex
-        min-h-screen
-        items-center
-        justify-center
-        bg-slate-50
-      "
-    >
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-10 sm:px-8">
+      <div className="w-full max-w-md">
+        {/* LOGO */}
+        <div className="mb-8 flex flex-col items-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-slate-900 text-xl font-black text-white">
+            A
+          </div>
+          <div className="mt-3 text-xl font-semibold text-slate-900">
+            Averis
+          </div>
+          <div className="mt-1 text-xs font-medium text-slate-500">
+            Hệ thống Chấm công Khuôn mặt AI
+          </div>
+        </div>
 
-      {/* ======================================================
-          LEFT BRAND PANEL
-      ====================================================== */}
+        {/* LOGIN CARD */}
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-xs">
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Đăng nhập hệ thống
+            </h1>
+            <p className="mt-1.5 text-sm text-slate-500">
+              Nhập thông tin tài khoản Averis của bạn để tiếp tục.
+            </p>
+          </div>
 
-      <section
-        className="
-          hidden
-          lg:flex
-          lg:min-h-screen
-          lg:w-1/2
-          lg:flex-col
-          lg:justify-between
-          relative
-          overflow-hidden
-          bg-gradient-to-br
-          from-blue-600
-          via-blue-700
-          to-indigo-900
-          p-12
-          text-white
-        "
-      >
-
-        {/* Decorative circles */}
-
-        <div
-          className="
-            absolute
-            -right-24
-            -top-24
-            h-72
-            w-72
-            rounded-full
-            bg-blue-500/40
-          "
-        />
-
-        <div
-          className="
-            absolute
-            -bottom-32
-            -left-24
-            h-96
-            w-96
-            rounded-full
-            bg-blue-700/40
-          "
-        />
-
-        <div
-          className="
-            absolute
-            right-20
-            bottom-20
-            h-20
-            w-20
-            rounded-full
-            bg-white/5
-          "
-        />
-
-
-        <div
-          className="
-            relative
-            z-10
-            mx-auto
-            w-full
-            max-w-xl
-          "
-        >
-
-          {/* ==================================================
-              LOGO
-          ================================================== */}
-
-          <div
-            className="
-              mb-8
-              flex
-              items-center
-              gap-4
-            "
-          >
-
-            <div
-              className="
-                flex
-                h-14
-                w-14
-                items-center
-                justify-center
-                rounded-2xl
-                bg-white
-                text-2xl
-                font-black
-                text-blue-600
-                shadow-lg
-              "
-            >
-              A
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label
+                htmlFor="username"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Tên đăng nhập
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                  if (error) setError("");
+                }}
+                placeholder="Nhập tên đăng nhập"
+                autoComplete="username"
+                required
+                disabled={loading}
+                className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              />
             </div>
 
             <div>
-
-              <h1
-                className="
-                  text-2xl
-                  font-extrabold
-                  tracking-tight
-                  text-white
-                "
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-semibold text-slate-700"
               >
-                Averis
-              </h1>
-
-              <p
-                className="
-                  mt-0.5
-                  text-xs
-                  font-semibold
-                  uppercase
-                  tracking-wider
-                  text-blue-100
-                "
-              >
-                F&amp;B Enterprise &amp; Biometric SaaS
-              </p>
-
-            </div>
-
-          </div>
-
-
-          {/* ==================================================
-              BRAND CONTENT
-          ================================================== */}
-
-          <div>
-
-            <div
-              className="
-                mb-3
-                text-sm
-                font-bold
-                uppercase
-                tracking-[0.15em]
-                text-blue-200
-              "
-            >
-              AI Biometrics for F&amp;B &amp; Retail Chains
-            </div>
-
-            <h2
-              className="
-                max-w-lg
-                text-4xl
-                font-extrabold
-                leading-tight
-                tracking-tight
-                text-white
-                xl:text-5xl
-              "
-            >
-              Touchless check-in
-              <br />
-              for F&amp;B operations.
-            </h2>
-
-            <p
-              className="
-                mt-6
-                max-w-lg
-                text-sm
-                leading-7
-                text-blue-100
-                xl:text-base
-              "
-            >
-              Giải pháp quản trị nhân sự, phân ca xoay linh hoạt và điểm danh
-              khuôn mặt AI chuyên biệt cho chuỗi Nhà hàng, Cà phê &amp; F&amp;B.
-            </p>
-
-          </div>
-
-
-          {/* ==================================================
-              FEATURES
-          ================================================== */}
-
-          <div
-            className="
-              mt-10
-              space-y-4
-            "
-          >
-
-            <Feature
-              title="Touchless POS Kiosk Check-in (1.2s)"
-              description="Điểm danh không chạm cho Bếp & Barista khi tay ướt hoặc đeo găng tay."
-            />
-
-            <Feature
-              title="Rotating, Split & Overnight F&B Shifts"
-              description="Tự động nhận diện Ca Sáng, Ca Chiều, Ca Đêm qua ngày & Ca Gãy cao điểm."
-            />
-
-            <Feature
-              title="Hourly Timesheet & F&B Payroll Export"
-              description="Tính giờ công thực tế, phụ cấp OT x1.5 và xuất bảng lương Excel/CSV."
-            />
-
-          </div>
-
-
-          {/* ==================================================
-              FOOTER
-          ================================================== */}
-
-          <div
-            className="
-              mt-12
-              border-t
-              border-white/10
-              pt-6
-              text-xs
-              text-blue-200
-            "
-          >
-            Averis AI · Enterprise Management & Biometric Attendance
-          </div>
-
-        </div>
-
-      </section>
-
-
-      {/* ======================================================
-          RIGHT LOGIN PANEL
-      ====================================================== */}
-
-      <section
-        className="
-          flex
-          min-h-screen
-          w-full
-          lg:w-1/2
-          items-center
-          justify-center
-          px-5
-          py-10
-          sm:px-8
-        "
-      >
-
-        <div
-          className="
-            w-full
-            max-w-md
-          "
-        >
-
-          {/* ==================================================
-              MOBILE LOGO
-          ================================================== */}
-
-          <div
-            className="
-              mb-10
-              flex
-              flex-col
-              items-center
-              flex
-            "
-          >
-
-            <div
-              className="
-                flex
-                h-14
-                w-14
-                items-center
-                justify-center
-                rounded-2xl
-                bg-blue-600
-                text-2xl
-                font-black
-                text-white
-                shadow-lg
-              "
-            >
-              A
-            </div>
-
-            <div
-              className="
-                mt-3
-                text-xl
-                font-extrabold
-                text-slate-900
-              "
-            >
-              Averis
-            </div>
-
-            <div
-              className="
-                mt-1
-                text-[10px]
-                font-bold
-                uppercase
-                tracking-wider
-                text-slate-400
-              "
-            >
-              Enterprise & Biometric Attendance
-            </div>
-
-          </div>
-
-
-          {/* ==================================================
-              LOGIN CARD
-          ================================================== */}
-
-          <div
-            className="
-              rounded-2xl
-              border
-              border-slate-200
-              bg-white
-              p-6
-              shadow-sm
-              sm:p-8
-            "
-          >
-
-            {/* Header */}
-
-            <div className="mb-8">
-
-              <h2
-                className="
-                  text-2xl
-                  font-extrabold
-                  tracking-tight
-                  text-slate-900
-                "
-              >
-                Welcome back
-              </h2>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-slate-500
-                "
-              >
-                Sign in to your Averis
-                account to continue.
-              </p>
-
-            </div>
-
-
-            {/* =================================================
-                FORM
-            ================================================= */}
-
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-5"
-            >
-
-              {/* Username */}
-
-              <div>
-
-                <label
-                  htmlFor="username"
-                  className="
-                    mb-2
-                    block
-                    text-sm
-                    font-bold
-                    text-slate-700
-                  "
-                >
-                  Username
-                </label>
-
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(event) => {
-                    setUsername(
-                      event.target.value
-                    );
-
-                    if (error) {
-                      setError("");
-                    }
-                  }}
-                  placeholder="Enter your username"
-                  autoComplete="username"
-                  required
-                  disabled={loading}
-                  className="
-                    w-full
-                    rounded-xl
-                    border
-                    border-slate-200
-                    bg-slate-50
-                    px-4
-                    py-3
-                    text-sm
-                    text-slate-800
-                    outline-none
-                    transition
-
-                    placeholder:text-slate-400
-
-                    focus:border-blue-400
-                    focus:bg-white
-                    focus:ring-4
-                    focus:ring-blue-50
-
-                    disabled:cursor-not-allowed
-                    disabled:opacity-60
-                  "
-                />
-
-              </div>
-
-
-              {/* Password */}
-
-              <div>
-
-                <label
-                  htmlFor="password"
-                  className="
-                    mb-2
-                    block
-                    text-sm
-                    font-bold
-                    text-slate-700
-                  "
-                >
-                  Password
-                </label>
-
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(
-                      event.target.value
-                    );
-
-                    if (error) {
-                      setError("");
-                    }
-                  }}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                  disabled={loading}
-                  className="
-                    w-full
-                    rounded-xl
-                    border
-                    border-slate-200
-                    bg-slate-50
-                    px-4
-                    py-3
-                    text-sm
-                    text-slate-800
-                    outline-none
-                    transition
-
-                    placeholder:text-slate-400
-
-                    focus:border-blue-400
-                    focus:bg-white
-                    focus:ring-4
-                    focus:ring-blue-50
-
-                    disabled:cursor-not-allowed
-                    disabled:opacity-60
-                  "
-                />
-
-              </div>
-
-
-              {/* =================================================
-                  ERROR
-              ================================================= */}
-
-              {error && (
-
-                <div
-                  role="alert"
-                  className="
-                    flex
-                    items-start
-                    gap-3
-                    rounded-xl
-                    border
-                    border-red-200
-                    bg-red-50
-                    p-3.5
-                  "
-                >
-
-                  <div
-                    className="
-                      flex
-                      h-6
-                      w-6
-                      shrink-0
-                      items-center
-                      justify-center
-                      rounded-full
-                      bg-red-100
-                      text-xs
-                      font-extrabold
-                      text-red-600
-                    "
-                  >
-                    <CircleAlert size={16} strokeWidth={2} />
-                  </div>
-
-                  <p
-                    className="
-                      text-sm
-                      leading-6
-                      text-red-700
-                    "
-                  >
-                    {error}
-                  </p>
-
-                </div>
-
-              )}
-
-
-              {/* =================================================
-                  SUBMIT
-              ================================================= */}
-
-              <button
-                type="submit"
+                Mật khẩu
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (error) setError("");
+                }}
+                placeholder="Nhập mật khẩu"
+                autoComplete="current-password"
+                required
                 disabled={loading}
-                className="
-                  flex
-                  w-full
-                  items-center
-                  justify-center
-                  gap-2
-                  rounded-xl
-                  bg-blue-600
-                  px-4
-                  py-3
-                  text-sm
-                  font-bold
-                  text-white
-                  shadow-sm
-                  transition
+                className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </div>
 
-                  hover:bg-blue-700
-                  hover:shadow-md
-
-                  focus:outline-none
-                  focus:ring-4
-                  focus:ring-blue-100
-
-                  disabled:cursor-not-allowed
-                  disabled:opacity-60
-                "
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 p-3.5"
               >
-
-                {loading && (
-                  <span
-                    className="
-                      h-4
-                      w-4
-                      animate-spin
-                      rounded-full
-                      border-2
-                      border-white/40
-                      border-t-white
-                    "
-                  />
-                )}
-
-                {loading
-                  ? "Signing in..."
-                  : "Sign in"}
-
-              </button>
-
-            </form>
-
-
-            {/* =================================================
-                DEMO QUICK ACCESS
-            ================================================= */}
-
-            <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-700">
-                  <Sparkles size={14} />
-                  Live Demo Quick Access
-                </span>
-                <button
-                  type="button"
-                  disabled={seeding || loading}
-                  onClick={() => void handleSeedDemo()}
-                  className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs transition hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {seeding ? "Initializing..." : "1-Click Seed Demo Data"}
-                </button>
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-semibold text-red-600">
+                  <CircleAlert size={16} strokeWidth={2} />
+                </div>
+                <p className="text-sm leading-6 text-red-700">{error}</p>
               </div>
-              <p className="mt-1.5 text-xs text-slate-600">
-                Populate realistic enterprise employees, shifts, weekly schedules, and 14-day attendance logs:
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={seeding || loading}
-                  onClick={() => void handleSeedDemo("ADMIN")}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
-                >
-                  <ShieldCheck size={14} className="text-blue-600" />
-                  Demo Admin
-                </button>
-                <button
-                  type="button"
-                  disabled={seeding || loading}
-                  onClick={() => void handleSeedDemo("EMPLOYEE")}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
-                >
-                  <UserRound size={14} className="text-emerald-600" />
-                  Demo Employee
-                </button>
-              </div>
-              {seedMessage && (
-                <p className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                  <Check size={14} />
-                  {seedMessage}
-                </p>
-              )}
-            </div>
+            )}
 
-            {/* =================================================
-                FOOTER
-            ================================================= */}
-
-            <div
-              className="
-                mt-7
-                border-t
-                border-slate-100
-                pt-5
-                text-center
-                text-[11px]
-                font-medium
-                text-slate-400
-              "
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Averis AI · Enterprise & Biometric Attendance
-            </div>
-
-          </div>
-
-
-          {/* Security text */}
-
-          <div
-            className="
-              mt-5
-              flex
-              items-center
-              justify-center
-              gap-2
-              text-xs
-              text-slate-400
-            "
-          >
-            <span>
-              <LockKeyhole size={14} strokeWidth={2} />
-            </span>
-
-            Secure authentication
-          </div>
-
+              {loading && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              )}
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            </button>
+          </form>
         </div>
 
-      </section>
-
-    </div>
-  );
-}
-
-
-/* ============================================================
-   FEATURE
-============================================================ */
-
-function Feature({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div
-      className="
-        flex
-        items-start
-        gap-3
-      "
-    >
-
-      <div
-        className="
-          mt-0.5
-          flex
-          h-7
-          w-7
-          shrink-0
-          items-center
-          justify-center
-          rounded-full
-          bg-white/10
-          text-xs
-          font-bold
-          text-white
-        "
-      >
-        <Check size={15} strokeWidth={2.5} />
+        <div className="mt-5 flex items-center justify-center gap-2 text-xs text-slate-400">
+          <LockKeyhole size={14} strokeWidth={2} />
+          <span>Xác thực bảo mật JWT</span>
+        </div>
       </div>
-
-      <div>
-
-        <div
-          className="
-            text-sm
-            font-bold
-            text-white
-          "
-        >
-          {title}
-        </div>
-
-        <div
-          className="
-            mt-1
-            text-xs
-            leading-5
-            text-blue-200
-          "
-        >
-          {description}
-        </div>
-
-      </div>
-
     </div>
   );
 }

@@ -12,6 +12,7 @@ import insightface
 from insightface.app import FaceAnalysis
 
 SIMILARITY_THRESHOLD = 0.45   # cosine similarity above this = same person
+MIN_FACE_AREA_RATIO = 0.04    # minimum face bounding-box area fraction of frame
 MODEL_DIR = Path.home() / ".insightface"
 MODEL_DIR.mkdir(exist_ok=True)
 
@@ -26,6 +27,7 @@ class FaceAnalysisResult:
     gender: str | None = None             # "male" / "female"
     bbox: list[int] | None = None         # [x1, y1, x2, y2]
     detection_score: float = 0.0
+    face_area_ratio: float = 0.0
 
 
 class FaceRecognitionEngine:
@@ -52,6 +54,10 @@ class FaceRecognitionEngine:
 
         bbox = face.bbox.astype(int).tolist()
         gender = "male" if face.gender == 1 else "female"
+        frame_h, frame_w = frame.shape[:2]
+        frame_area = max(1, frame_w * frame_h)
+        face_area = max(0, bbox[2] - bbox[0]) * max(0, bbox[3] - bbox[1])
+        face_area_ratio = round(face_area / frame_area, 4)
 
         return FaceAnalysisResult(
             face_detected=True,
@@ -61,6 +67,7 @@ class FaceRecognitionEngine:
             gender=gender,
             bbox=bbox,
             detection_score=float(face.det_score),
+            face_area_ratio=face_area_ratio,
         )
 
     @staticmethod

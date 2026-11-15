@@ -89,9 +89,25 @@ export async function reviewAttendanceRequest(
   return response.data;
 }
 
-export async function getAttendances(): Promise<Attendance[]> {
+export async function deleteAttendanceRequest(
+  requestId: number
+): Promise<void> {
+  await apiClient.delete(`/api/attendance/requests/${requestId}`);
+}
+
+export interface AttendanceFilterParams {
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  employee_id?: number;
+}
+
+export async function getAttendances(
+  params?: AttendanceFilterParams
+): Promise<Attendance[]> {
   const response = await apiClient.get<Attendance[]>(
-    "/api/attendance"
+    "/api/attendance",
+    { params }
   );
 
   return response.data;

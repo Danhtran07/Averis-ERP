@@ -1,18 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Building2,
-  CalendarCheck2,
-  Check,
-  CircleAlert,
-  Clock3,
-  FileCheck2,
-  ScanFace,
-  ShieldCheck,
-  Sparkles,
-  UsersRound,
-  type LucideIcon,
-} from "lucide-react";
+import { ScanFace } from "lucide-react";
 
 import { getEmployees } from "../api/employee.api";
 import {
@@ -43,9 +31,6 @@ interface StoredUser {
 interface Statistic {
   label: string;
   value: string | number;
-  description: string;
-  icon: LucideIcon;
-  iconClass: string;
 }
 
 function formatTime(value: string | null) {
@@ -89,11 +74,11 @@ export default function Dashboard() {
   const today = new Date().toISOString().split("T")[0];
   const currentMonthPrefix = today.slice(0, 7);
 
-  const displayDate = new Date().toLocaleDateString("en-US", {
-    weekday: "short",
+  const displayDate = new Date().toLocaleDateString("vi-VN", {
+    weekday: "long",
     year: "numeric",
-    month: "short",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
 
   async function loadDashboard() {
@@ -123,7 +108,7 @@ export default function Dashboard() {
         setRequests(reqData);
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to load dashboard data."));
+      setError(getApiErrorMessage(err, "Không thể tải dữ liệu."));
     } finally {
       setLoading(false);
     }
@@ -146,17 +131,6 @@ export default function Dashboard() {
   const totalEmployees = employees.length;
   const presentCount = todayAttendances.filter((item) => item.status === "PRESENT").length;
   const lateCount = todayAttendances.filter((item) => item.status === "LATE").length;
-  const absentCount = Math.max(
-    0,
-    isAdmin
-      ? totalEmployees - (presentCount + lateCount)
-      : todayAttendances.filter((item) => item.status === "ABSENT").length
-  );
-
-  const attendanceRate =
-    totalEmployees > 0
-      ? Math.round(((presentCount + lateCount) / totalEmployees) * 100)
-      : 0;
 
   const pendingRequestsCount = useMemo(
     () => requests.filter((r) => r.status === "PENDING").length,
@@ -182,7 +156,7 @@ export default function Dashboard() {
     todayAttendances.forEach((a) => todayByEmp.set(a.employee_id, a));
 
     employees.forEach((emp) => {
-      const dept = emp.department?.trim() || "General / Unassigned";
+      const dept = emp.department?.trim() || "Chưa phân quầy";
       const current = groups.get(dept) || {
         department: dept,
         total: 0,
@@ -203,82 +177,54 @@ export default function Dashboard() {
     return Array.from(groups.values()).sort((a, b) => b.total - a.total);
   }, [employees, todayAttendances, isAdmin]);
 
+  const totalMonthWorkingMinutes = useMemo(
+    () => monthAttendances.reduce((sum, a) => sum + (a.working_minutes || 0), 0),
+    [monthAttendances]
+  );
+  const totalMonthLateMinutes = useMemo(
+    () => monthAttendances.reduce((sum, a) => sum + (a.late_minutes || 0), 0),
+    [monthAttendances]
+  );
+  const totalMonthOvertimeMinutes = useMemo(
+    () => monthAttendances.reduce((sum, a) => sum + (a.overtime_minutes || 0), 0),
+    [monthAttendances]
+  );
+
   const adminStatistics: Statistic[] = [
-    {
-      label: "Total Employees",
-      value: totalEmployees,
-      description: `${aiMetrics?.enrolled_employees ?? employees.filter((e) => e.face_enrolled).length} face-enrolled profiles`,
-      icon: UsersRound,
-      iconClass: "bg-blue-50 text-blue-600",
-    },
-    {
-      label: "Present Today",
-      value: presentCount,
-      description: `${attendanceRate}% company attendance rate`,
-      icon: Check,
-      iconClass: "bg-emerald-50 text-emerald-600",
-    },
-    {
-      label: "Late Today",
-      value: lateCount,
-      description: "Checked in after shift tolerance",
-      icon: Clock3,
-      iconClass: "bg-amber-50 text-amber-600",
-    },
-    {
-      label: "Pending Requests",
-      value: pendingRequestsCount,
-      description: `${absentCount} not checked in yet today`,
-      icon: FileCheck2,
-      iconClass: "bg-purple-50 text-purple-600",
-    },
+    { label: "Nhân sự vào ca hôm nay", value: `${presentCount + lateCount} / ${totalEmployees}` },
+    { label: "Tổng giờ công tháng", value: formatHours(totalMonthWorkingMinutes) },
+    { label: "Phút trễ ca / Tăng ca", value: `${totalMonthLateMinutes}p / ${formatHours(totalMonthOvertimeMinutes)}` },
+    { label: "Đơn chờ duyệt", value: pendingRequestsCount },
   ];
 
   const myTodayRecord = todayAttendances[0] || null;
-  const myPresentMonth = monthAttendances.filter(
-    (a) => a.status === "PRESENT" || a.status === "LATE"
-  ).length;
-  const myLateMonth = monthAttendances.filter((a) => a.status === "LATE").length;
-  const myWorkingMinutesMonth = monthAttendances.reduce(
-    (sum, a) => sum + (a.working_minutes || 0),
+  const myLateMinutesMonth = monthAttendances.reduce(
+    (sum, a) => sum + (a.late_minutes || 0),
     0
   );
   const myOvertimeMinutesMonth = monthAttendances.reduce(
     (sum, a) => sum + (a.overtime_minutes || 0),
     0
   );
+  const myWorkingMinutesMonth = monthAttendances.reduce(
+    (sum, a) => sum + (a.working_minutes || 0),
+    0
+  );
 
   const employeeStatistics: Statistic[] = [
     {
-      label: "Today's Status",
-      value: myTodayRecord ? myTodayRecord.status : "NOT CHECKED IN",
-      description: myTodayRecord?.check_in
-        ? `In: ${formatTime(myTodayRecord.check_in)} · Out: ${formatTime(myTodayRecord.check_out)}`
-        : "Use Face Attendance to check in",
-      icon: CalendarCheck2,
-      iconClass: "bg-blue-50 text-blue-600",
+      label: "Ca hôm nay",
+      value: myTodayRecord
+        ? myTodayRecord.status === "PRESENT"
+          ? "Đúng giờ"
+          : myTodayRecord.status === "LATE"
+            ? "Đi trễ"
+            : "Vắng"
+        : "Chưa chấm công",
     },
-    {
-      label: "Attendance This Month",
-      value: `${myPresentMonth} days`,
-      description: `${myLateMonth} late arrival(s) this month`,
-      icon: Check,
-      iconClass: "bg-emerald-50 text-emerald-600",
-    },
-    {
-      label: "Working Hours (Month)",
-      value: formatHours(myWorkingMinutesMonth),
-      description: `Overtime: ${formatHours(myOvertimeMinutesMonth)}`,
-      icon: Clock3,
-      iconClass: "bg-amber-50 text-amber-600",
-    },
-    {
-      label: "My Requests",
-      value: requests.length,
-      description: `${pendingRequestsCount} pending admin approval`,
-      icon: FileCheck2,
-      iconClass: "bg-purple-50 text-purple-600",
-    },
+    { label: "Tổng giờ làm tháng này", value: formatHours(myWorkingMinutesMonth) },
+    { label: "Phút trễ / Tăng ca", value: `${myLateMinutesMonth}p / ${formatHours(myOvertimeMinutesMonth)}` },
+    { label: "Đơn chờ duyệt", value: pendingRequestsCount },
   ];
 
   const recentAttendance = useMemo(() => {
@@ -302,7 +248,7 @@ export default function Dashboard() {
 
     const denominator = isAdmin ? Math.max(1, totalEmployees) : 1;
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
       const dateString = date.toISOString().split("T")[0];
@@ -316,7 +262,7 @@ export default function Dashboard() {
           : Math.min(100, Math.round((validCount / denominator) * 100));
 
       result.push({
-        day: date.toLocaleDateString("en-US", { weekday: "long" }),
+        day: date.toLocaleDateString("vi-VN", { weekday: "long" }),
         date: dateString,
         percent,
       });
@@ -325,7 +271,7 @@ export default function Dashboard() {
   }, [attendances, totalEmployees, isAdmin]);
 
   if (loading) {
-    return <LoadingState message="Loading dashboard..." />;
+    return <LoadingState message="Đang tải..." />;
   }
 
   if (error) {
@@ -334,223 +280,111 @@ export default function Dashboard() {
 
   const statistics = isAdmin ? adminStatistics : employeeStatistics;
 
+  const biometricStats: Statistic[] = aiMetrics
+    ? [
+        {
+          label: "Độ khớp khuôn mặt TB",
+          value:
+            aiMetrics.avg_face_similarity > 0
+              ? `${(aiMetrics.avg_face_similarity * 100).toFixed(1)}%`
+              : "—",
+        },
+        {
+          label: "Điểm xác thực TB",
+          value:
+            aiMetrics.avg_liveness_score > 0
+              ? `${(aiMetrics.avg_liveness_score * 100).toFixed(1)}%`
+              : "—",
+        },
+        {
+          label: "Đã đăng ký khuôn mặt",
+          value: `${aiMetrics.enrolled_employees} / ${totalEmployees}`,
+        },
+      ]
+    : [];
+
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-6">
-      {/* PAGE HEADER */}
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-[1600px] space-y-5">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">
-            {isAdmin
-              ? "Averis F&B Enterprise SaaS — Quản Trị Chuỗi Cửa Hàng & Nhân Sự"
-              : "Averis F&B Employee Self-Service Portal"}
-          </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-            Dashboard
-          </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
-            Welcome back,{" "}
-            <span className="font-semibold text-slate-700">{username}</span>
+          <h1 className="text-xl font-semibold text-slate-900">Tổng quan</h1>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {displayDate}
             {!isAdmin && mySchedule?.shift && (
-              <span className="ml-2 inline-flex items-center rounded-lg bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-                Today&apos;s Shift: {mySchedule.shift.name} (
-                {mySchedule.shift.start_time.slice(0, 5)} -{" "}
+              <>
+                {" · "}
+                {mySchedule.shift.name} ({mySchedule.shift.start_time.slice(0, 5)}–
                 {mySchedule.shift.end_time.slice(0, 5)})
-              </span>
+              </>
             )}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {isAdmin && pendingRequestsCount > 0 && (
-            <Link
-              to="/attendance?tab=requests"
-              className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 no-underline shadow-sm transition hover:bg-amber-100"
-            >
-              <CircleAlert size={16} />
-              {pendingRequestsCount} Pending Request{pendingRequestsCount > 1 ? "s" : ""}
-            </Link>
-          )}
+        <div className="flex items-center gap-2">
+          <span className="hidden text-sm text-slate-500 sm:inline">{username}</span>
           <Link
             to="/recognition"
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white no-underline shadow-sm transition hover:bg-blue-700 hover:shadow-md"
+            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white no-underline hover:bg-slate-800"
           >
-            <ScanFace size={17} strokeWidth={2} aria-hidden="true" />
-            Face Attendance
+            <ScanFace size={16} strokeWidth={2} aria-hidden="true" />
+            Chấm công
           </Link>
-          <div className="inline-flex w-fit items-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 shadow-sm">
-            {displayDate}
-          </div>
         </div>
       </header>
 
-      {/* STATISTIC CARDS */}
-      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {statistics.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <div className="text-xs font-semibold text-slate-500">{stat.label}</div>
-              <div
-                className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-bold ${stat.iconClass}`}
-              >
-                <stat.icon size={20} strokeWidth={2} />
-              </div>
-            </div>
-            <div className="mt-4 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-              {stat.value}
-            </div>
-            <div className="mt-2 text-xs font-semibold text-slate-500">
-              {stat.description}
-            </div>
-          </div>
+          <StatCard key={stat.label} stat={stat} />
         ))}
       </section>
 
-      {/* AI BIOMETRICS & ANTI-SPOOFING MONITOR (ADMIN) */}
-      {isAdmin && aiMetrics && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <ShieldCheck size={20} />
-              </span>
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  AI Biometrics &amp; Anti-Spoofing Security Monitor
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Real-time ArcFace 512-D similarity &amp; active liveness telemetry
-                </p>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-              <Sparkles size={13} />
-              InsightFace buffalo_l + MediaPipe Liveness Active
-            </span>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="text-xs font-semibold text-slate-500">Avg Face Similarity</p>
-              <p className="mt-1.5 text-2xl font-extrabold text-slate-900">
-                {aiMetrics.avg_face_similarity > 0
-                  ? `${(aiMetrics.avg_face_similarity * 100).toFixed(1)}%`
-                  : "—"}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">Cosine match confidence</p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="text-xs font-semibold text-slate-500">Avg Liveness Score</p>
-              <p className="mt-1.5 text-2xl font-extrabold text-emerald-600">
-                {aiMetrics.avg_liveness_score > 0
-                  ? `${(aiMetrics.avg_liveness_score * 100).toFixed(1)}%`
-                  : "—"}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">Blink + Mouth + rPPG</p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="text-xs font-semibold text-slate-500">Enrolled Biometrics</p>
-              <p className="mt-1.5 text-2xl font-extrabold text-blue-600">
-                {aiMetrics.enrolled_employees} / {totalEmployees}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {aiMetrics.total_face_embeddings} stored face vectors
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="text-xs font-semibold text-slate-500">Verified Check-ins</p>
-              <p className="mt-1.5 text-2xl font-extrabold text-slate-900">
-                {aiMetrics.verified_count}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {aiMetrics.engine_rejected > 0
-                  ? `${aiMetrics.engine_rejected} spoof/invalid blocked`
-                  : "Zero spoof breaches"}
-              </p>
-            </div>
-          </div>
+      {isAdmin && biometricStats.length > 0 && (
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {biometricStats.map((stat) => (
+            <StatCard key={stat.label} stat={stat} />
+          ))}
         </section>
       )}
 
-      {/* MAIN CHARTS & RECENT FEED */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_1fr]">
-        <div className="space-y-6">
-          {/* WEEKLY OVERVIEW */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  {isAdmin ? "Weekly Attendance Rate" : "My Weekly Check-in Progress"}
-                </h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  {isAdmin
-                    ? "Employee attendance rate across Monday – Friday"
-                    : "Your attendance completion during this week"}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
-                This week
-              </span>
-            </div>
-
-            <div className="mt-6 space-y-4">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.3fr_1fr]">
+        <div className="space-y-5">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="text-sm font-semibold text-slate-900">Chuyên cần 7 ngày</h2>
+            <div className="mt-4 space-y-3">
               {weeklyAttendance.map((item) => (
-                <AttendanceRow
-                  key={item.date}
-                  day={item.day}
-                  percent={item.percent}
-                />
+                <AttendanceRow key={item.date} day={item.day} percent={item.percent} />
               ))}
             </div>
           </div>
 
-          {/* DEPARTMENT ANALYTICS (ADMIN) */}
           {isAdmin && departmentStats.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Building2 size={18} />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">
-                      Department Attendance Breakdown
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Today&apos;s check-in rate and headcount by department
-                    </p>
-                  </div>
-                </div>
+                <h2 className="text-sm font-semibold text-slate-900">Theo vị trí / quầy</h2>
                 <Link
-                  to="/attendance"
-                  className="text-xs font-bold text-blue-600 no-underline hover:underline"
+                  to="/attendance?tab=timesheet"
+                  className="text-xs text-slate-500 no-underline hover:text-slate-900 hover:underline"
                 >
-                  View Timesheets →
+                  Bảng công
                 </Link>
               </div>
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 {departmentStats.map((dept) => {
                   const pct =
-                    dept.total > 0
-                      ? Math.round((dept.checkedIn / dept.total) * 100)
-                      : 0;
+                    dept.total > 0 ? Math.round((dept.checkedIn / dept.total) * 100) : 0;
                   return (
-                    <div key={dept.department} className="space-y-1.5">
+                    <div key={dept.department} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-700">
-                          {dept.department}
-                        </span>
-                        <span className="font-semibold text-slate-500">
-                          {dept.checkedIn}/{dept.total} present ({pct}%)
-                          {dept.late > 0 ? ` · ${dept.late} late` : ""}
+                        <span className="text-slate-700">{dept.department}</span>
+                        <span className="text-slate-500">
+                          {dept.checkedIn}/{dept.total}
+                          {dept.late > 0 ? ` · ${dept.late} trễ` : ""}
                         </span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                          className="h-full rounded-full bg-slate-800"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -562,34 +396,21 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* RECENT ATTENDANCE */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                {isAdmin ? "Recent Biometric Check-ins" : "My Recent Attendance"}
-              </h2>
-              <p className="mt-1 text-xs text-slate-400">
-                {isAdmin
-                  ? "Latest verified check-ins with AI similarity scores"
-                  : "Your latest check-in and check-out records"}
-              </p>
-            </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-sm font-semibold text-slate-900">Chấm công gần đây</h2>
             <Link
               to="/attendance"
-              className="shrink-0 rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-semibold text-blue-600 no-underline hover:bg-blue-50"
+              className="text-xs text-slate-500 no-underline hover:text-slate-900 hover:underline"
             >
-              Open Calendar
+              Xem tất cả
             </Link>
           </div>
 
-          <div className="mt-5 divide-y divide-slate-100">
+          <div className="mt-2 divide-y divide-slate-100">
             {recentAttendance.length === 0 ? (
-              <div className="py-8">
-                <EmptyState
-                  title="No attendance records yet"
-                  message="No employee check-ins have been recorded."
-                />
+              <div className="py-6">
+                <EmptyState title="Chưa có dữ liệu" message="" />
               </div>
             ) : (
               recentAttendance.map((item) => {
@@ -599,16 +420,13 @@ export default function Dashboard() {
                     key={item.id}
                     name={
                       isAdmin
-                        ? employee?.full_name ?? `Employee #${item.employee_id}`
-                        : `Date: ${item.date}`
+                        ? employee?.full_name ?? `Nhân viên #${item.employee_id}`
+                        : item.date
                     }
                     department={isAdmin ? employee?.department : undefined}
                     time={item.check_in ? formatTime(item.check_in) : "-"}
                     checkOut={item.check_out ? formatTime(item.check_out) : null}
                     status={item.status}
-                    similarity={item.face_similarity}
-                    liveness={item.liveness_score}
-                    workingMinutes={item.working_minutes}
                   />
                 );
               })
@@ -620,19 +438,23 @@ export default function Dashboard() {
   );
 }
 
+function StatCard({ stat }: { stat: Statistic }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="text-xs text-slate-500">{stat.label}</div>
+      <div className="mt-1.5 text-2xl font-semibold text-slate-900">{stat.value}</div>
+    </div>
+  );
+}
+
 function AttendanceRow({ day, percent }: { day: string; percent: number }) {
   return (
-    <div className="grid grid-cols-[90px_1fr_48px] items-center gap-3">
-      <span className="text-xs font-semibold text-slate-500">{day}</span>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-blue-600 transition-all duration-500"
-          style={{ width: `${percent}%` }}
-        />
+    <div className="grid grid-cols-[90px_1fr_40px] items-center gap-3">
+      <span className="text-xs text-slate-500">{day}</span>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-slate-800" style={{ width: `${percent}%` }} />
       </div>
-      <span className="text-right text-xs font-bold text-slate-500">
-        {percent}%
-      </span>
+      <span className="text-right text-xs text-slate-600">{percent}%</span>
     </div>
   );
 }
@@ -643,82 +465,40 @@ function Activity({
   time,
   checkOut,
   status,
-  similarity,
-  liveness,
-  workingMinutes,
 }: {
   name: string;
   department?: string | null;
   time: string;
   checkOut: string | null;
   status: string;
-  similarity?: number | null;
-  liveness?: number | null;
-  workingMinutes?: number;
 }) {
-  const initials = name
-    .replace("Date:", "")
-    .trim()
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(-2)
-    .toUpperCase();
-
   const statusClass =
     status === "PRESENT"
-      ? "bg-emerald-50 text-emerald-600"
+      ? "text-slate-900"
       : status === "LATE"
-      ? "bg-amber-50 text-amber-600"
-      : "bg-red-50 text-red-600";
+        ? "text-amber-700"
+        : "text-slate-400";
+
+  const statusLabel =
+    status === "PRESENT"
+      ? "Đúng giờ"
+      : status === "LATE"
+        ? "Đi trễ"
+        : status === "ABSENT"
+          ? "Vắng"
+          : status;
 
   return (
-    <div className="flex items-center gap-3 py-3.5">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
-        {initials || "AT"}
-      </div>
-
+    <div className="flex items-center gap-3 py-2.5">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-bold text-slate-800">{name}</span>
-          {department && (
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-              {department}
-            </span>
-          )}
-        </div>
-
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span>
-            In: <strong className="text-slate-600">{time}</strong>
-            {checkOut ? (
-              <>
-                {" "}
-                · Out: <strong className="text-slate-600">{checkOut}</strong>
-              </>
-            ) : null}
-          </span>
-          {workingMinutes && workingMinutes > 0 ? (
-            <span className="text-slate-500">· {formatHours(workingMinutes)}</span>
-          ) : null}
-          {similarity != null && (
-            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">
-              Match {(similarity * 100).toFixed(0)}%
-            </span>
-          )}
-          {liveness != null && (
-            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
-              Live {(liveness * 100).toFixed(0)}%
-            </span>
-          )}
+        <div className="truncate text-sm text-slate-800">{name}</div>
+        <div className="mt-0.5 text-xs text-slate-500">
+          {department ? `${department} · ` : ""}
+          {time}
+          {checkOut ? ` – ${checkOut}` : ""}
         </div>
       </div>
-
-      <span
-        className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${statusClass}`}
-      >
-        {status}
-      </span>
+      <span className={`shrink-0 text-xs font-medium ${statusClass}`}>{statusLabel}</span>
     </div>
   );
 }

@@ -168,7 +168,7 @@ export default function Employees() {
   const [submittingEnrollment, setSubmittingEnrollment] = useState(false);
   const [enrollmentChallenge, setEnrollmentChallenge] = useState("WAITING");
   const [enrollmentChallengeIndex, setEnrollmentChallengeIndex] = useState(-1);
-  const [enrollmentFeedback, setEnrollmentFeedback] = useState("Preparing face scan...");
+  const [enrollmentFeedback, setEnrollmentFeedback] = useState("Đang chuẩn bị quét khuôn mặt...");
   const [livenessComplete, setLivenessComplete] = useState(false);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -400,7 +400,7 @@ export default function Employees() {
     ) {
 
       setFormError(
-        "Please fill in all required fields."
+        "Vui lòng điền đầy đủ các trường bắt buộc."
       );
 
       return;
@@ -418,7 +418,7 @@ export default function Employees() {
       if (!form.user_id.trim()) {
 
         setFormError(
-          "Please select a User account or choose 'Create new login account'."
+          "Vui lòng chọn một tài khoản người dùng hoặc chọn 'Tạo tài khoản mới'."
         );
 
         return;
@@ -433,7 +433,7 @@ export default function Employees() {
       ) {
 
         setFormError(
-          "User ID must be a valid number."
+          "ID tài khoản người dùng không hợp lệ."
         );
 
         return;
@@ -441,7 +441,7 @@ export default function Employees() {
     } else if (!editingEmployee && userLinkMode === "new") {
       if (!newAccountForm.username.trim() || newAccountForm.password.length < 8) {
         setFormError(
-          "New login username is required and password must be at least 8 characters."
+          "Tên đăng nhập mới là bắt buộc và mật khẩu phải từ 8 ký tự trở lên."
         );
         return;
       }
@@ -589,7 +589,7 @@ export default function Employees() {
 
     const confirmed =
       window.confirm(
-        `Are you sure you want to delete ${employee.full_name}?`
+        `Bạn có chắc chắn muốn xoá nhân sự ${employee.full_name}?`
       );
 
     if (!confirmed) {
@@ -743,7 +743,7 @@ export default function Employees() {
       livenessSocketRef.current = socket;
 
       socket.onopen = () => {
-        setEnrollmentFeedback("Keep your face inside the frame...");
+        setEnrollmentFeedback("Giữ khuôn mặt trong khung hình...");
         livenessTimerRef.current = window.setInterval(() => {
           const video = cameraVideoRef.current;
           const canvas = livenessCanvasRef.current;
@@ -797,15 +797,15 @@ export default function Employees() {
           socket.close();
         }
       };
-      socket.onerror = () => setCameraError("Unable to connect to liveness verification.");
+      socket.onerror = () => setCameraError("Không thể kết nối xác thực thực thể sống (Liveness).");
     } catch (error) {
-      setCameraError(getApiErrorMessage(error, "Unable to start liveness verification."));
+      setCameraError(getApiErrorMessage(error, "Không thể khởi động xác thực khuôn mặt."));
     }
   }
 
   async function openCameraForEnrollment() {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("Camera access is not supported by this browser.");
+      setCameraError("Trình duyệt không hỗ trợ truy cập camera.");
       return;
     }
 
@@ -824,18 +824,18 @@ export default function Employees() {
       cameraStreamRef.current = stream;
       const video = cameraVideoRef.current;
       if (!video) {
-        throw new Error("Camera preview is unavailable.");
+        throw new Error("Không tìm thấy khung hình camera.");
       }
 
       video.srcObject = stream;
       await video.play();
-      void startEnrollmentMesh().catch(() => setCameraError("Unable to load face mesh."));
+      void startEnrollmentMesh().catch(() => setCameraError("Không thể tải lưới nhận diện khuôn mặt."));
       void startEnrollmentLiveness();
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "NotAllowedError"
-          ? "Camera permission was denied. Please allow camera access and try again."
-          : getApiErrorMessage(error, "Unable to open the camera.");
+          ? "Quyền truy cập camera bị từ chối. Vui lòng cho phép camera và thử lại."
+          : getApiErrorMessage(error, "Không thể mở camera.");
       setCameraError(message);
     } finally {
       setCameraLoading(false);
@@ -968,7 +968,7 @@ export default function Employees() {
       setSubmittingEnrollment(true);
       setFaceError("");
       const result = await enrollEmployeeFace(enrollingId, capturedFrames);
-      setFaceMessage(`${result.embeddings_saved} face embeddings saved. This employee can now use AI check-in.`);
+      setFaceMessage(`Đã lưu ${result.embeddings_saved} mẫu đặc trưng khuôn mặt. Nhân sự này có thể chấm công AI ngay.`);
       setEmployees((current) => current.map((employee) => employee.id === enrollingId ? { ...employee, face_enrolled: true } : employee));
       closeCameraModal();
     } catch (error) {
@@ -1012,41 +1012,17 @@ export default function Employees() {
 
         <div>
 
-          <div
-            className="
-              mb-1
-              text-[11px]
-              font-bold
-              uppercase
-              tracking-[0.12em]
-              text-blue-600
-            "
-          >
-            Management
-          </div>
-
           <h1
             className="
               text-2xl
-              font-extrabold
+              font-semibold
               tracking-tight
               text-slate-900
               sm:text-3xl
             "
           >
-            Employees
+            Nhân sự
           </h1>
-
-          <p
-            className="
-              mt-1.5
-              text-sm
-              text-slate-500
-            "
-          >
-            Manage employee information
-            and account assignments
-          </p>
 
         </div>
 
@@ -1059,41 +1035,32 @@ export default function Employees() {
             inline-flex
             items-center
             justify-center
-            rounded-xl
-            bg-blue-600
-            px-5 py-3
-            text-sm font-bold
+            rounded-md
+            bg-slate-900
+            px-4 py-2
+            text-sm font-semibold
             text-white
-            shadow-sm
             transition
-
-            hover:bg-blue-700
-            hover:shadow-md
-
-            focus:outline-none
-            focus:ring-2
-            focus:ring-blue-200
-
+            hover:bg-slate-800
             disabled:cursor-not-allowed
             disabled:opacity-50
           "
         >
-          <span className="mr-2 text-lg">
+          <span className="mr-1.5">
             +
           </span>
 
-          Add Employee
+          Thêm nhân sự
         </button>}
 
       </header>
 
       {showCameraModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+          <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-4 shadow-2xl">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-600">Face enrollment</p>
-                <h2 className="mt-1 text-xl font-bold text-slate-900">Capture live face sample</h2>
+                <h2 className="text-base font-semibold text-slate-900">Đăng ký khuôn mặt</h2>
               </div>
 
               <button
@@ -1101,11 +1068,11 @@ export default function Employees() {
                 onClick={closeCameraModal}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
-                Close
+                Đóng
               </button>
             </div>
 
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+            <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
               <video
                 ref={cameraVideoRef}
                 autoPlay
@@ -1129,19 +1096,19 @@ export default function Employees() {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-500">
                 {livenessComplete
-                  ? `${capturedFrames.length}/3 clean frame(s) scanned`
-                  : "Complete the liveness checks before sample scanning"}
+                  ? `Đã chụp ${capturedFrames.length}/3`
+                  : "Đang xác thực..."}
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
+              <div className="flex items-center gap-2 text-xs font-semibold  ">
                 {LIVENESS_STEPS.map((step, index) => (
                   <span
                     key={step.challenge}
                     className={`rounded-full px-2.5 py-1 ${
                       enrollmentChallenge === step.challenge
-                        ? "bg-amber-100 text-amber-700"
+                        ? "bg-slate-200 text-slate-900"
                         : enrollmentChallenge === "COMPLETE" || enrollmentChallengeIndex > index
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-slate-900 text-white"
                           : "bg-slate-100 text-slate-400"
                     }`}
                   >
@@ -1151,12 +1118,12 @@ export default function Employees() {
               </div>
             </div>
 
-            <p className="mt-3 text-center text-sm font-semibold text-emerald-600">
-              {submittingEnrollment ? "Saving enrollment..." : livenessComplete ? "Scanning automatically..." : "Mesh tracking active"}
+            <p className="mt-3 text-center text-sm font-semibold text-slate-700">
+              {submittingEnrollment ? "Đang lưu..." : livenessComplete ? "Đang chụp..." : ""}
             </p>
 
             {(cameraError || faceError) && (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {cameraError || faceError}
               </div>
             )}
@@ -1166,10 +1133,10 @@ export default function Employees() {
 
       {(faceMessage || faceError) && (
         <div
-          className={`mb-5 rounded-xl border px-4 py-3 text-sm ${
+          className={`mb-5 rounded-md border px-4 py-3 text-sm ${
             faceError
               ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-slate-50 text-slate-700"
           }`}
         >
           {faceError || faceMessage}
@@ -1188,7 +1155,7 @@ export default function Employees() {
             mb-5
             flex items-center
             gap-3
-            rounded-xl
+            rounded-md
             border border-red-200
             bg-red-50
             px-4 py-3
@@ -1204,7 +1171,7 @@ export default function Employees() {
               items-center justify-center
               rounded-full
               bg-red-100
-              font-bold
+              font-semibold
             "
           >
             !
@@ -1242,10 +1209,10 @@ export default function Employees() {
       <section
         className="
           overflow-hidden
-          rounded-2xl
+          rounded-lg
           border border-slate-200
           bg-white
-          shadow-sm
+          
         "
       >
 
@@ -1258,11 +1225,11 @@ export default function Employees() {
             flex flex-col
             gap-4
             border-b border-slate-100
-            p-5
+            p-4
             sm:flex-row
             sm:items-center
             sm:justify-between
-            sm:p-6
+            sm:p-4
           "
         >
 
@@ -1299,10 +1266,10 @@ export default function Employees() {
                 )
               }
               disabled={loading}
-              placeholder="Search by employee code, name, email or department..."
+              placeholder="Tìm kiếm..."
               className="
                 w-full
-                rounded-xl
+                rounded-md
                 border border-slate-200
                 bg-slate-50
                 py-3
@@ -1315,10 +1282,8 @@ export default function Employees() {
 
                 placeholder:text-slate-400
 
-                focus:border-blue-400
+                focus:border-slate-400
                 focus:bg-white
-                focus:ring-4
-                focus:ring-blue-50
 
                 disabled:cursor-not-allowed
                 disabled:opacity-60
@@ -1335,9 +1300,9 @@ export default function Employees() {
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
               disabled={loading}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
+              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-slate-400 focus:bg-white"
             >
-              <option value="">All Departments</option>
+              <option value="">Tất cả bộ phận</option>
               {departments.map((dept) => (
                 <option key={dept} value={dept}>
                   {dept}
@@ -1353,11 +1318,11 @@ export default function Employees() {
                 )
               }
               disabled={loading}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
+              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-slate-400 focus:bg-white"
             >
-              <option value="ALL">All Biometric Status</option>
-              <option value="ENROLLED">Face Enrolled</option>
-              <option value="NOT_ENROLLED">Not Enrolled</option>
+              <option value="ALL">Khuôn mặt: tất cả</option>
+              <option value="ENROLLED">Đã đăng ký khuôn mặt</option>
+              <option value="NOT_ENROLLED">Chưa đăng ký khuôn mặt</option>
             </select>
 
             <div
@@ -1371,9 +1336,7 @@ export default function Employees() {
               <span className="text-slate-700">
                 {filteredEmployees.length}
               </span>{" "}
-              {filteredEmployees.length === 1
-                ? "employee"
-                : "employees"}
+              nhân sự
             </div>
           </div>
 
@@ -1404,7 +1367,7 @@ export default function Employees() {
                 rounded-full
                 border-4
                 border-slate-200
-                border-t-blue-600
+                border-t-slate-900
               "
             />
 
@@ -1415,7 +1378,7 @@ export default function Employees() {
                 text-slate-500
               "
             >
-              Loading employees...
+              Đang tải danh sách nhân sự...
             </p>
 
           </div>
@@ -1448,7 +1411,7 @@ export default function Employees() {
                 items-center justify-center
                 rounded-full
                 bg-red-50
-                text-lg font-bold
+                text-lg font-semibold
                 text-red-600
               "
             >
@@ -1458,11 +1421,11 @@ export default function Employees() {
             <h3
               className="
                 text-base
-                font-bold
+                font-semibold
                 text-slate-800
               "
             >
-              Unable to load employees
+              Không thể tải danh sách nhân sự
             </h3>
 
             <p
@@ -1482,19 +1445,16 @@ export default function Employees() {
               onClick={loadEmployees}
               className="
                 mt-5
-                rounded-xl
-                bg-blue-600
-                px-5 py-2.5
-                text-sm font-bold
+                rounded-md
+                bg-slate-900
+                px-4 py-2
+                text-sm font-semibold
                 text-white
                 transition
-                hover:bg-blue-700
-                focus:outline-none
-                focus:ring-4
-                focus:ring-blue-100
+                hover:bg-slate-800
               "
             >
-              Try Again
+              Thử lại
             </button>
 
           </div>
@@ -1527,7 +1487,7 @@ export default function Employees() {
                   mb-4
                   flex h-16 w-16
                   items-center justify-center
-                  rounded-2xl
+                  rounded-lg
                   bg-slate-100
                   text-2xl
                 "
@@ -1538,13 +1498,13 @@ export default function Employees() {
               <h3
                 className="
                   text-base
-                  font-bold
+                  font-semibold
                   text-slate-800
                 "
               >
                 {search
-                  ? "No employees found"
-                  : "No employees yet"}
+                  ? "Không tìm thấy nhân sự phù hợp"
+                  : "Chưa có nhân sự nào"}
               </h3>
 
               <p
@@ -1557,8 +1517,8 @@ export default function Employees() {
                 "
               >
                 {search
-                  ? "Try changing your search keyword."
-                  : "Start by creating your first employee."}
+                  ? ""
+                  : ""}
               </p>
 
               {!search && isAdmin && (
@@ -1570,16 +1530,16 @@ export default function Employees() {
                   }
                   className="
                     mt-5
-                    rounded-xl
-                    bg-blue-600
-                    px-5 py-2.5
-                    text-sm font-bold
+                    rounded-md
+                    bg-slate-900
+                    px-4 py-2
+                    text-sm font-semibold
                     text-white
                     transition
-                    hover:bg-blue-700
+                    hover:bg-slate-800
                   "
                 >
-                  + Add Employee
+                  + Thêm nhân sự
                 </button>
 
               )}
@@ -1625,13 +1585,13 @@ export default function Employees() {
                         px-5 py-4
                         text-left
                         text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-wider
+                        font-semibold
+                        
+                        
                         text-slate-400
                       "
                     >
-                      Employee
+                      Mã NV
                     </th>
 
                     <th
@@ -1639,13 +1599,13 @@ export default function Employees() {
                         px-5 py-4
                         text-left
                         text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-wider
+                        font-semibold
+                        
+                        
                         text-slate-400
                       "
                     >
-                      Name
+                      Họ và tên
                     </th>
 
                     <th
@@ -1653,9 +1613,9 @@ export default function Employees() {
                         px-5 py-4
                         text-left
                         text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-wider
+                        font-semibold
+                        
+                        
                         text-slate-400
                       "
                     >
@@ -1667,13 +1627,13 @@ export default function Employees() {
                         px-5 py-4
                         text-left
                         text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-wider
+                        font-semibold
+                        
+                        
                         text-slate-400
                       "
                     >
-                      Department
+                      Vị trí / Quầy
                     </th>
 
                     <th
@@ -1681,13 +1641,13 @@ export default function Employees() {
                         px-5 py-4
                         text-left
                         text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-wider
+                        font-semibold
+                        
+                        
                         text-slate-400
                       "
                     >
-                      User ID
+                      Tài khoản
                     </th>
 
                     <th
@@ -1695,13 +1655,13 @@ export default function Employees() {
                         px-5 py-4
                         text-right
                         text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-wider
+                        font-semibold
+                        
+                        
                         text-slate-400
                       "
                     >
-                      Actions
+                      Thao tác
                     </th>
 
                   </tr>
@@ -1737,11 +1697,12 @@ export default function Employees() {
                           <span
                             className="
                               rounded-lg
-                              bg-blue-50
-                              px-2.5 py-1.5
+                              bg-slate-100
+                              px-2.5 py-1
+                              font-mono
                               text-xs
-                              font-bold
-                              text-blue-600
+                              font-medium
+                              text-slate-600
                             "
                           >
                             {employee.employee_code}
@@ -1774,7 +1735,7 @@ export default function Employees() {
                                 justify-center
                                 rounded-full
                                 bg-slate-100
-                                text-xs font-bold
+                                text-xs font-semibold
                                 text-slate-600
                               "
                             >
@@ -1785,22 +1746,22 @@ export default function Employees() {
 
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="truncate whitespace-nowrap text-sm font-bold text-slate-800">
+                                <span className="truncate whitespace-nowrap text-sm font-semibold text-slate-800">
                                   {employee.full_name}
                                 </span>
                                 {employee.face_enrolled && (
-                                  <span title="Face capture verified">
+                                  <span title="Đã xác thực khuôn mặt">
                                     <BadgeCheck
                                       size={17}
-                                      strokeWidth={2.5}
-                                      className="shrink-0 text-emerald-600"
-                                      aria-label="Face capture verified"
+                                      strokeWidth={2}
+                                      className="shrink-0 text-slate-700"
+                                      aria-label="Đã xác thực khuôn mặt"
                                     />
                                   </span>
                                 )}
                               </div>
                               <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-                                {employee.face_enrolled ? "Face verified" : "Face not captured"}
+                                {employee.face_enrolled ? "Đã đăng ký khuôn mặt" : "Chưa đăng ký khuôn mặt"}
                               </p>
                             </div>
 
@@ -1913,7 +1874,7 @@ export default function Employees() {
                               title={employee.face_enrolled ? "Recapture face" : "Capture face"}
                               onClick={() => startFaceEnrollment(employee.id)}
                               disabled={enrollingId !== null || saving}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               {enrollingId === employee.id ? "..." : employee.face_enrolled ? <BadgeCheck size={17} strokeWidth={2.5} /> : <ScanFace size={17} strokeWidth={2} />}
                             </button>
@@ -1943,9 +1904,7 @@ export default function Employees() {
                                 text-slate-500
                                 transition
 
-                                hover:border-blue-200
-                                hover:bg-blue-50
-                                hover:text-blue-600
+                                hover:bg-slate-50 hover:text-slate-900
 
                                 disabled:cursor-not-allowed
                                 disabled:opacity-40
@@ -1981,9 +1940,7 @@ export default function Employees() {
                                 text-slate-400
                                 transition
 
-                                hover:border-red-200
-                                hover:bg-red-50
-                                hover:text-red-600
+                                hover:bg-slate-50 hover:text-red-600
 
                                 disabled:cursor-not-allowed
                                 disabled:opacity-40
@@ -2058,7 +2015,7 @@ export default function Employees() {
               w-full
               max-w-lg
               overflow-hidden
-              rounded-2xl
+              rounded-lg
               bg-white
               shadow-2xl
             "
@@ -2086,26 +2043,14 @@ export default function Employees() {
                 <h2
                   className="
                     text-lg
-                    font-extrabold
+                    font-semibold
                     text-slate-900
                   "
                 >
                   {editingEmployee
-                    ? "Edit Employee"
-                    : "Add Employee"}
+                    ? "Sửa nhân sự"
+                    : "Thêm nhân sự"}
                 </h2>
-
-                <p
-                  className="
-                    mt-1
-                    text-xs
-                    text-slate-400
-                  "
-                >
-                  {editingEmployee
-                    ? "Update employee information"
-                    : "Create a new employee account assignment"}
-                </p>
 
               </div>
 
@@ -2158,7 +2103,7 @@ export default function Employees() {
                       flex
                       items-start
                       gap-3
-                      rounded-xl
+                      rounded-md
                       border border-red-200
                       bg-red-50
                       p-3.5
@@ -2174,7 +2119,7 @@ export default function Employees() {
                         items-center justify-center
                         rounded-full
                         bg-red-100
-                        text-xs font-bold
+                        text-xs font-semibold
                       "
                     >
                       !
@@ -2192,7 +2137,7 @@ export default function Employees() {
                 {/* Employee Code */}
 
                 <FormField
-                  label="Employee Code"
+                  label="Mã nhân sự"
                   required
                 >
                   <input
@@ -2217,7 +2162,7 @@ export default function Employees() {
                 {/* Full Name */}
 
                 <FormField
-                  label="Full Name"
+                  label="Họ và tên"
                   required
                 >
                   <input
@@ -2231,7 +2176,7 @@ export default function Employees() {
                         event.target.value
                       )
                     }
-                    placeholder="Nguyen Van A"
+                    placeholder="Nguyễn Văn A"
                     required
                     disabled={saving}
                     className={inputClassName}
@@ -2256,7 +2201,7 @@ export default function Employees() {
                         event.target.value
                       )
                     }
-                    placeholder="employee@gmail.com"
+                    placeholder="nhanvien@gmail.com"
                     required
                     disabled={saving}
                     className={inputClassName}
@@ -2264,39 +2209,39 @@ export default function Employees() {
                 </FormField>
 
 
-                {/* Department */}
+                {/* Department / Station */}
 
                 <FormField
-                  label="F&B Station / Department"
+                  label="Vị trí / Quầy"
                 >
-                  <input
-                    type="text"
-                    value={
-                      form.department
-                    }
+                  <select
+                    value={form.department}
                     onChange={(event) =>
-                      handleChange(
-                        "department",
-                        event.target.value
-                      )
+                      handleChange("department", event.target.value)
                     }
-                    placeholder="Quầy Pha Chế - Barista"
                     disabled={saving}
                     className={inputClassName}
-                  />
+                  >
+                    <option value="">-- Chọn vị trí / quầy F&amp;B --</option>
+                    <option value="Pha chế (Barista)">Pha chế (Barista)</option>
+                    <option value="Thu ngân (Cashier)">Thu ngân (Cashier)</option>
+                    <option value="Phục vụ (Server)">Phục vụ (Server)</option>
+                    <option value="Bếp (Kitchen)">Bếp (Kitchen)</option>
+                    <option value="Quản lý ca (Shift Manager)">Quản lý ca (Shift Manager)</option>
+                  </select>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {[
-                      "Quầy Pha Chế - Barista",
-                      "Khu Vực Bếp - Kitchen",
-                      "Sảnh Phục Vụ - Service",
-                      "Quầy Thu Ngân - POS",
-                      "Quản Lý Cửa Hàng - Store Ops",
+                      "Pha chế (Barista)",
+                      "Thu ngân (Cashier)",
+                      "Phục vụ (Server)",
+                      "Bếp (Kitchen)",
+                      "Quản lý ca (Shift Manager)",
                     ].map((station) => (
                       <button
                         key={station}
                         type="button"
                         onClick={() => handleChange("department", station)}
-                        className="rounded-md border border-blue-200 bg-blue-50/70 px-2 py-0.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100"
+                        className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
                       >
                         + {station}
                       </button>
@@ -2308,10 +2253,10 @@ export default function Employees() {
                 {/* User Account - CREATE ONLY */}
 
                 {!editingEmployee && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                  <div className="rounded-md border border-slate-200 bg-slate-50/70 p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-700">
-                        User Login Account <span className="text-red-500">*</span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        Tài khoản đăng nhập <span className="text-red-500">*</span>
                       </span>
                       <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold">
                         <button
@@ -2319,22 +2264,22 @@ export default function Employees() {
                           onClick={() => setUserLinkMode("existing")}
                           className={`rounded-md px-2.5 py-1 transition ${
                             userLinkMode === "existing"
-                              ? "bg-blue-600 text-white"
+                              ? "bg-slate-900 text-white"
                               : "text-slate-600 hover:bg-slate-50"
                           }`}
                         >
-                          Select existing user
+                          Có sẵn
                         </button>
                         <button
                           type="button"
                           onClick={() => setUserLinkMode("new")}
                           className={`rounded-md px-2.5 py-1 transition ${
                             userLinkMode === "new"
-                              ? "bg-blue-600 text-white"
+                              ? "bg-slate-900 text-white"
                               : "text-slate-600 hover:bg-slate-50"
                           }`}
                         >
-                          + Create new login
+                          Tạo mới
                         </button>
                       </div>
                     </div>
@@ -2350,7 +2295,7 @@ export default function Employees() {
                           disabled={saving}
                           className={inputClassName}
                         >
-                          <option value="">-- Select User Account --</option>
+                          <option value="">-- Chọn tài khoản người dùng --</option>
                           {users.map((u) => {
                             const existingEmp = employees.find(
                               (e) => e.user_id === u.id
@@ -2366,26 +2311,23 @@ export default function Employees() {
                                 #{u.id} · {u.username} ({u.role})
                                 {existingEmp
                                   ? isPlaceholder
-                                    ? " — Ready to configure"
-                                    : ` — Linked to ${existingEmp.full_name}`
-                                  : " — Unlinked"}
+                                    ? ""
+                                    : ` — Đã gán cho ${existingEmp.full_name}`
+                                  : ""}
                               </option>
                             );
                           })}
                         </select>
-                        <p className="mt-1.5 text-[11px] leading-5 text-slate-400">
-                          Choose an existing user account or switch to &ldquo;+ Create new login&rdquo; to generate credentials automatically.
-                        </p>
                       </div>
                     ) : (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                          <label className="mb-1 block text-[11px] font-bold text-slate-600">
-                            Login Username *
+                          <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                            Tên đăng nhập *
                           </label>
                           <input
                             type="text"
-                            placeholder="emp_nguyen"
+                            placeholder="nv_nguyenvana"
                             value={newAccountForm.username}
                             onChange={(e) =>
                               setNewAccountForm((prev) => ({
@@ -2399,8 +2341,8 @@ export default function Employees() {
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-[11px] font-bold text-slate-600">
-                            Login Password (min 8 chars) *
+                          <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                            Mật khẩu *
                           </label>
                           <input
                             type="password"
@@ -2445,10 +2387,10 @@ export default function Employees() {
                   onClick={closeModal}
                   disabled={saving}
                   className="
-                    rounded-xl
+                    rounded-md
                     border border-slate-200
                     bg-white
-                    px-5 py-2.5
+                    px-4 py-2
                     text-sm font-semibold
                     text-slate-600
                     transition
@@ -2459,7 +2401,7 @@ export default function Employees() {
                     disabled:opacity-50
                   "
                 >
-                  Cancel
+                  Huỷ
                 </button>
 
 
@@ -2472,19 +2414,13 @@ export default function Employees() {
                     items-center
                     justify-center
                     gap-2
-                    rounded-xl
-                    bg-blue-600
-                    px-5 py-2.5
-                    text-sm font-bold
+                    rounded-md
+                    bg-slate-900
+                    px-4 py-2
+                    text-sm font-semibold
                     text-white
                     transition
-
-                    hover:bg-blue-700
-
-                    focus:outline-none
-                    focus:ring-4
-                    focus:ring-blue-100
-
+                    hover:bg-slate-800
                     disabled:cursor-not-allowed
                     disabled:opacity-60
                   "
@@ -2504,10 +2440,10 @@ export default function Employees() {
                   )}
 
                   {saving
-                    ? "Saving..."
+                    ? "Đang lưu..."
                     : editingEmployee
-                      ? "Save Changes"
-                      : "Create Employee"}
+                      ? "Lưu"
+                      : "Lưu"}
 
                 </button>
 
@@ -2547,7 +2483,7 @@ function FormField({
           mb-2
           block
           text-xs
-          font-bold
+          font-semibold
           text-slate-700
         "
       >
@@ -2575,7 +2511,7 @@ function FormField({
 
 const inputClassName = `
   w-full
-  rounded-xl
+  rounded-md
   border border-slate-200
   bg-white
   px-4 py-3

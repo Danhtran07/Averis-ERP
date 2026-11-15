@@ -242,6 +242,20 @@ def test_duplicate_completed_attendance_is_rejected(db_session, recognition):
     assert error.value.status_code == 409
 
 
+def test_immediate_double_scan_before_cooldown_is_rejected(db_session, recognition):
+    record_recognition_attendance(db_session, recognition, NOW)
+
+    with pytest.raises(RecognitionRejectedError) as error:
+        record_recognition_attendance(
+            db_session,
+            recognition,
+            datetime(2026, 9, 5, 1, 2, tzinfo=timezone.utc),
+        )
+
+    assert error.value.status_code == 409
+    assert "wait at least" in error.value.detail
+
+
 def test_employee_not_found_is_rejected(db_session):
     result = AIRecognitionResult(
         matched=True,

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.timezone import to_vietnam_time
+from app.core.timezone import to_utc_time, to_vietnam_time
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.employee import Employee
 from app.schemas.ai import AIRecognitionResult
@@ -17,6 +17,8 @@ from app.services.shift_hours import (
     get_shift_check_in_window,
 )
 from app.services.shift_resolver import resolve_shift, resolve_shift_for_punch
+
+MIN_CHECKOUT_COOLDOWN_MINUTES = 5
 
 
 class RecognitionRejectedError(Exception):
@@ -101,6 +103,19 @@ def record_recognition_attendance(
         )
         db.add(attendance)
     elif attendance.check_out is None:
+        if attendance.check_in is not None:
+            elapsed_seconds = (
+                to_utc_time(server_now) - to_utc_time(attendance.check_in)
+            ).total_seconds()
+            if elapsed_seconds < MIN_CHECKOUT_COOLDOWN_MINUTES * 60:
+                remaining_mins = max(
+                    1,
+                    int((MIN_CHECKOUT_COOLDOWN_MINUTES * 60 - elapsed_seconds + 59) // 60),
+                )
+                raise RecognitionRejectedError(
+                    f"Please wait at least {remaining_mins} minute(s) after check-in before checking out",
+                    409,
+                )
         attendance.check_out = server_now
         attendance.timestamp = server_now
         attendance.face_similarity = recognition.confidence

@@ -567,3 +567,29 @@ def test_attendance_request_create_and_admin_approve_workflow(
     assert attendance is not None
     assert attendance.status == AttendanceStatus.PRESENT
     assert attendance.verification_status == "ADMIN_APPROVED"
+
+
+def test_employee_can_cancel_pending_attendance_request_only(
+    db_session,
+    auth_headers,
+    employee_user_headers,
+):
+    emp_headers, _, _ = employee_user_headers
+
+    create_resp = client.post(
+        "/api/attendance/requests",
+        json={
+            "date": "2026-09-18",
+            "request_type": "LEAVE",
+            "reason": "Personal leave request",
+        },
+        headers=emp_headers,
+    )
+    assert create_resp.status_code == 201
+    req_id = create_resp.json()["id"]
+
+    del_resp = client.delete(f"/api/attendance/requests/{req_id}", headers=emp_headers)
+    assert del_resp.status_code == 204
+
+    list_resp = client.get("/api/attendance/requests", headers=emp_headers)
+    assert all(item["id"] != req_id for item in list_resp.json())

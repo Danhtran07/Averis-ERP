@@ -19,13 +19,13 @@ import type { Shift, ShiftPayload, WorkSchedule } from "../types/schedule";
 import { SHIFT_TEMPLATES, type ShiftTemplateId } from "../utils/shiftTemplates";
 
 const days = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
+  "Thứ Hai",
+  "Thứ Ba",
+  "Thứ Tư",
+  "Thứ Năm",
+  "Thứ Sáu",
+  "Thứ Bảy",
+  "Chủ Nhật",
 ];
 
 type WorkConfigTab = "shifts" | "schedules";
@@ -52,13 +52,13 @@ export default function Schedules() {
   const [shiftActionError, setShiftActionError] = useState("");
   const [updatingShiftId, setUpdatingShiftId] = useState<number | null>(null);
   const [savingShift, setSavingShift] = useState(false);
-  const [template, setTemplate] = useState<ShiftTemplateId>("day");
+  const [template, setTemplate] = useState<ShiftTemplateId>("morning");
   const [shiftForm, setShiftForm] = useState({
-    name: "Day office",
-    code: "DAY-OFFICE",
-    start_time: SHIFT_TEMPLATES.day.start,
-    end_time: SHIFT_TEMPLATES.day.end,
-    description: "",
+    name: SHIFT_TEMPLATES.morning.name,
+    code: SHIFT_TEMPLATES.morning.code,
+    start_time: SHIFT_TEMPLATES.morning.start,
+    end_time: SHIFT_TEMPLATES.morning.end,
+    description: SHIFT_TEMPLATES.morning.description,
   });
 
   // Weekly schedule creation state
@@ -68,9 +68,9 @@ export default function Schedules() {
     description: string;
     dayShifts: Record<number, string>;
   }>({
-    name: "Standard Office Week",
-    code: "STD-WEEK",
-    description: "Monday to Friday standard office shift",
+    name: "Lịch vận hành F&B 7 ngày",
+    code: "FNB-7DAY",
+    description: "Vận hành quầy xuyên suốt Thứ 2 đến Chủ Nhật",
     dayShifts: {
       1: "",
       2: "",
@@ -119,8 +119,8 @@ export default function Schedules() {
             3: prev.dayShifts[3] || String(defaultShift.id),
             4: prev.dayShifts[4] || String(defaultShift.id),
             5: prev.dayShifts[5] || String(defaultShift.id),
-            6: prev.dayShifts[6] || "",
-            7: prev.dayShifts[7] || "",
+            6: prev.dayShifts[6] || String(defaultShift.id),
+            7: prev.dayShifts[7] || String(defaultShift.id),
           },
         }));
       }
@@ -137,7 +137,7 @@ export default function Schedules() {
         }));
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to load shifts and schedules."));
+      setError(getApiErrorMessage(err, "Không thể tải danh sách ca và lịch làm việc."));
     } finally {
       setLoading(false);
     }
@@ -165,10 +165,11 @@ export default function Schedules() {
     const preset = SHIFT_TEMPLATES[value];
     setShiftForm((current) => ({
       ...current,
-      name: value === "day" ? "Day office" : "Night shift",
-      code: value === "day" ? "DAY-OFFICE" : "NIGHT-SHIFT",
+      name: preset.name,
+      code: preset.code,
       start_time: preset.start,
       end_time: preset.end,
+      description: preset.description,
     }));
   }
 
@@ -188,10 +189,16 @@ export default function Schedules() {
     try {
       const created = await createShift(payload);
       setShifts((current) => [...current, created].sort((a, b) => a.start_time.localeCompare(b.start_time)));
-      setShiftForm({ name: "Day office", code: "DAY-OFFICE", start_time: "08:00", end_time: "17:00", description: "" });
-      setTemplate("day");
+      setShiftForm({
+        name: SHIFT_TEMPLATES.morning.name,
+        code: SHIFT_TEMPLATES.morning.code,
+        start_time: SHIFT_TEMPLATES.morning.start,
+        end_time: SHIFT_TEMPLATES.morning.end,
+        description: SHIFT_TEMPLATES.morning.description,
+      });
+      setTemplate("morning");
     } catch (err) {
-      setCreateError(getApiErrorMessage(err, "Unable to create shift."));
+      setCreateError(getApiErrorMessage(err, "Không thể tạo ca làm việc."));
     } finally {
       setSavingShift(false);
     }
@@ -205,7 +212,7 @@ export default function Schedules() {
       const updated = await deactivateShift(shift.id);
       setShifts((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (err) {
-      setShiftActionError(getApiErrorMessage(err, "Unable to remove this shift."));
+      setShiftActionError(getApiErrorMessage(err, "Không thể ngưng kích hoạt ca làm việc này."));
     } finally {
       setUpdatingShiftId(null);
     }
@@ -235,7 +242,7 @@ export default function Schedules() {
         ...prev,
         schedule_id: prev.schedule_id || String(created.id),
       }));
-      setScheduleSuccess(`Created weekly schedule "${created.name}" (${created.code}).`);
+      setScheduleSuccess(`Đã tạo lịch làm việc tuần "${created.name}" (${created.code}).`);
       setScheduleForm((prev) => ({
         ...prev,
         name: "",
@@ -243,7 +250,7 @@ export default function Schedules() {
         description: "",
       }));
     } catch (err) {
-      setScheduleError(getApiErrorMessage(err, "Unable to create weekly schedule."));
+      setScheduleError(getApiErrorMessage(err, "Không thể tạo lịch làm việc tuần."));
     } finally {
       setSavingSchedule(false);
     }
@@ -254,7 +261,7 @@ export default function Schedules() {
     setAssignError("");
     setAssignSuccess("");
     if (!assignForm.employee_id || !assignForm.schedule_id) {
-      setAssignError("Please select both an employee and a weekly schedule.");
+      setAssignError("Vui lòng chọn cả nhân sự và lịch làm việc tuần.");
       return;
     }
     setSavingAssign(true);
@@ -268,54 +275,48 @@ export default function Schedules() {
       const emp = employees.find((e) => e.id === assigned.employee_id);
       const sched = schedules.find((s) => s.id === assigned.schedule_id);
       setAssignSuccess(
-        `Assigned "${sched?.name ?? `#${assigned.schedule_id}`}" to ${emp?.full_name ?? `Employee #${assigned.employee_id}`} starting ${assigned.effective_from}.`
+        `Đã gán "${sched?.name ?? `#${assigned.schedule_id}`}" cho ${emp?.full_name ?? `Nhân sự #${assigned.employee_id}`} từ ngày ${assigned.effective_from}.`
       );
     } catch (err) {
-      setAssignError(getApiErrorMessage(err, "Unable to assign schedule to employee."));
+      setAssignError(getApiErrorMessage(err, "Không thể gán lịch làm việc cho nhân sự."));
     } finally {
       setSavingAssign(false);
     }
   }
 
-  if (loading) return <LoadingState message="Loading work configuration..." />;
+  if (loading) return <LoadingState message="Đang tải cấu hình ca & lịch làm việc..." />;
   if (error) return <ErrorState message={error} onRetry={() => void loadWorkConfig()} />;
 
   return (
     <section className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
-            Work configuration
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-            Shifts & schedules
+          <h1 className="text-xl font-semibold text-slate-900">
+            Ca làm việc &amp; Lịch tuần
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Shift time windows feed weekly patterns. Attendance policy uses the assigned shift at check-in.
-          </p>
         </div>
-        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="inline-flex rounded-md border border-slate-200 bg-white p-1">
           <button
             type="button"
             onClick={() => setTab("shifts")}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
               tab === "shifts"
-                ? "bg-blue-600 text-white"
+                ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            Shifts
+            Ca làm việc
           </button>
           <button
             type="button"
             onClick={() => setTab("schedules")}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
               tab === "schedules"
-                ? "bg-blue-600 text-white"
+                ? "bg-slate-900 text-white"
                 : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            Weekly schedules
+            Lịch tuần
           </button>
         </div>
       </header>
@@ -323,122 +324,103 @@ export default function Schedules() {
       {tab === "shifts" ? (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <Clock3 className="text-blue-600" size={20} />
-              <p className="mt-4 text-2xl font-bold text-slate-900">{shifts.length}</p>
-              <p className="text-sm text-slate-500">Configured shifts</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="text-xs text-slate-500">Tổng số ca</div>
+              <div className="mt-1 text-2xl font-semibold text-slate-900">{shifts.length}</div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <ShieldCheck className="text-emerald-600" size={20} />
-              <p className="mt-4 text-2xl font-bold text-slate-900">{activeCount}</p>
-              <p className="text-sm text-slate-500">Available for assignment</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="text-xs text-slate-500">Đang hoạt động</div>
+              <div className="mt-1 text-2xl font-semibold text-slate-900">{activeCount}</div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <MoonStar className="text-violet-600" size={20} />
-              <p className="mt-4 text-2xl font-bold text-slate-900">{overnightCount}</p>
-              <p className="text-sm text-slate-500">Overnight shifts</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="text-xs text-slate-500">Ca qua đêm</div>
+              <div className="mt-1 text-2xl font-semibold text-slate-900">{overnightCount}</div>
             </div>
           </div>
 
-          <form onSubmit={handleCreateShift} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <form onSubmit={handleCreateShift} className="rounded-lg border border-slate-200 bg-white p-4">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Plus size={20} /></div>
-                <div><h2 className="font-bold text-slate-900">Add a shift</h2><p className="text-sm text-slate-500">Choose a preset or 1-click F&amp;B store shift template below.</p></div>
+                <div><h2 className="text-sm font-semibold text-slate-900">Thêm ca làm việc</h2></div>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  { name: "Ca Sáng F&B (Opening)", code: "FNB-MORNING", start: "06:00", end: "14:00", desc: "Ca mở quầy Barista & Bếp" },
-                  { name: "Ca Chiều F&B (Afternoon)", code: "FNB-AFTERNOON", start: "14:00", end: "22:00", desc: "Ca phục vụ chiều & tối" },
-                  { name: "Ca Đêm F&B (Overnight)", code: "FNB-NIGHT", start: "22:00", end: "06:00", desc: "Ca trực đêm & đóng quầy" },
-                  { name: "Ca Gãy Cao Điểm (Peak)", code: "FNB-PEAK", start: "10:00", end: "14:00", desc: "Ca Part-time cao điểm trưa" },
-                ].map((p) => (
-                  <button
-                    key={p.code}
-                    type="button"
-                    onClick={() =>
-                      setShiftForm({
-                        name: p.name,
-                        code: p.code,
-                        start_time: p.start,
-                        end_time: p.end,
-                        description: p.desc,
-                      })
-                    }
-                    className="rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
-                  >
-                    + {p.name}
-                  </button>
-                ))}
+                {(Object.entries(SHIFT_TEMPLATES) as [ShiftTemplateId, (typeof SHIFT_TEMPLATES)[ShiftTemplateId]][]).map(
+                  ([key, p]) => (
+                    <button
+                      key={p.code}
+                      type="button"
+                      onClick={() => selectTemplate(key)}
+                      className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      + {p.name}
+                    </button>
+                  )
+                )}
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="text-sm font-semibold text-slate-700">Shift type
-                <select value={template} onChange={(event) => selectTemplate(event.target.value as ShiftTemplateId)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">
-                  <option value="day">Day office (08:00–17:00)</option>
-                  <option value="night">Night shift (16:00–23:00)</option>
+              <label className="text-xs text-slate-500">Loại ca mẫu F&amp;B
+                <select value={template} onChange={(event) => selectTemplate(event.target.value as ShiftTemplateId)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+                  <option value="morning">{SHIFT_TEMPLATES.morning.label}</option>
+                  <option value="evening">{SHIFT_TEMPLATES.evening.label}</option>
+                  <option value="peak">{SHIFT_TEMPLATES.peak.label}</option>
+                  <option value="night">{SHIFT_TEMPLATES.night.label}</option>
                 </select>
               </label>
-              <label className="text-sm font-semibold text-slate-700">Shift name
-                <input required maxLength={100} value={shiftForm.name} onChange={(event) => setShiftForm({ ...shiftForm, name: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+              <label className="text-xs text-slate-500">Tên ca
+                <input required maxLength={100} value={shiftForm.name} onChange={(event) => setShiftForm({ ...shiftForm, name: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label className="text-sm font-semibold text-slate-700">Code
-                <input required maxLength={50} value={shiftForm.code} onChange={(event) => setShiftForm({ ...shiftForm, code: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+              <label className="text-xs text-slate-500">Mã ca
+                <input required maxLength={50} value={shiftForm.code} onChange={(event) => setShiftForm({ ...shiftForm, code: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label className="text-sm font-semibold text-slate-700">Start time
-                <input required type="time" value={shiftForm.start_time} onChange={(event) => setShiftForm({ ...shiftForm, start_time: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+              <label className="text-xs text-slate-500">Giờ bắt đầu
+                <input required type="time" value={shiftForm.start_time} onChange={(event) => setShiftForm({ ...shiftForm, start_time: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label className="text-sm font-semibold text-slate-700">End time
-                <input required type="time" value={shiftForm.end_time} onChange={(event) => setShiftForm({ ...shiftForm, end_time: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+              <label className="text-xs text-slate-500">Giờ kết thúc
+                <input required type="time" value={shiftForm.end_time} onChange={(event) => setShiftForm({ ...shiftForm, end_time: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label className="text-sm font-semibold text-slate-700">Description (optional)
-                <input value={shiftForm.description} onChange={(event) => setShiftForm({ ...shiftForm, description: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+              <label className="text-xs text-slate-500">Mô tả
+                <input value={shiftForm.description} onChange={(event) => setShiftForm({ ...shiftForm, description: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" />
               </label>
             </div>
             {createError && <p role="alert" className="mt-3 text-sm text-rose-600">{createError}</p>}
-            <button type="submit" disabled={savingShift} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
-              <Plus size={16} /> {savingShift ? "Adding shift..." : "Add shift"}
+            <button type="submit" disabled={savingShift} className="mt-4 inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+              <Plus size={16} /> {savingShift ? "Đang thêm..." : "Thêm"}
             </button>
           </form>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="font-bold text-slate-900">Shift library</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Removing a shift makes it unavailable for future assignment while preserving past records.
-              </p>
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <h2 className="text-sm font-semibold text-slate-900">Danh mục ca làm việc</h2>
             </div>
-            {shiftActionError && <p role="alert" className="border-b border-rose-100 bg-rose-50 px-5 py-3 text-sm text-rose-700">{shiftActionError}</p>}
+            {shiftActionError && <p role="alert" className="border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-700">{shiftActionError}</p>}
             {shifts.length === 0 ? (
               <div className="px-5 py-16 text-center text-sm text-slate-500">
-                No shifts have been configured yet.
+                Chưa có ca làm việc nào được cấu hình.
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
                 {shifts.map((shift) => (
                   <article
                     key={shift.id}
-                    className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between"
+                    className="flex flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between"
                   >
                     <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <Clock3 size={20} />
-                      </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-bold text-slate-900">{shift.name}</h3>
-                          <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          <h3 className="font-semibold text-slate-900">{shift.name}</h3>
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                             {shift.code}
                           </span>
                           {!shift.is_active && (
-                            <span className="rounded-md bg-rose-50 px-2 py-1 text-[10px] font-bold uppercase text-rose-600">
-                              Inactive
+                            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-400">
+                              Ngưng hoạt động
                             </span>
                           )}
                         </div>
                         <p className="mt-1 text-sm text-slate-500">
                           {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
-                          {shift.is_overnight ? " · overnight" : ""}
+                          {shift.is_overnight ? " · ca qua đêm" : ""}
                         </p>
                         {shift.description && (
                           <p className="mt-1 text-sm text-slate-500">{shift.description}</p>
@@ -446,16 +428,16 @@ export default function Schedules() {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[260px]">
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-slate-400">Late tolerance</p>
-                        <p className="mt-1 font-bold text-slate-800">
-                          {shift.late_tolerance_minutes} min
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Cho phép trễ</p>
+                        <p className="mt-0.5 font-semibold text-slate-800">
+                          {shift.late_tolerance_minutes} phút
                         </p>
                       </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-slate-400">Early check-in</p>
-                        <p className="mt-1 font-bold text-slate-800">
-                          {shift.early_checkin_minutes} min
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Mở chấm công sớm</p>
+                        <p className="mt-0.5 font-semibold text-slate-800">
+                          {shift.early_checkin_minutes} phút
                         </p>
                       </div>
                     </div>
@@ -463,12 +445,12 @@ export default function Schedules() {
                       type="button"
                       onClick={() => void handleDeactivateShift(shift)}
                       disabled={!shift.is_active || updatingShiftId === shift.id}
-                      aria-label={`Remove ${shift.name}`}
-                      title={shift.is_active ? "Remove shift" : "Shift already removed"}
-                      className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 md:self-center"
+                      aria-label={`Ngưng ${shift.name}`}
+                      title={shift.is_active ? "Ngưng kích hoạt ca" : "Ca đã ngưng hoạt động"}
+                      className="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 md:self-center"
                     >
-                      <Trash2 size={16} />
-                      {updatingShiftId === shift.id ? "Removing..." : "Remove"}
+                      <Trash2 size={14} />
+                      {updatingShiftId === shift.id ? "Đang xử lý..." : "Ngưng ca"}
                     </button>
                   </article>
                 ))}
@@ -478,22 +460,16 @@ export default function Schedules() {
         </>
       ) : (
         <>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             {/* Create Weekly Schedule Form */}
             <form
               onSubmit={handleCreateSchedule}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              className="rounded-lg border border-slate-200 bg-white p-4"
             >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                    <CalendarDays size={20} />
-                  </div>
                   <div>
-                    <h2 className="font-bold text-slate-900">Create weekly schedule</h2>
-                    <p className="text-sm text-slate-500">
-                      Map shifts to Monday–Sunday to build a reusable work pattern.
-                    </p>
+                    <h2 className="text-sm font-semibold text-slate-900">Tạo lịch tuần</h2>
                   </div>
                 </div>
                 {shifts.some((s) => s.is_active) && (
@@ -504,30 +480,30 @@ export default function Schedules() {
                         const activeShifts = shifts.filter((s) => s.is_active);
                         if (activeShifts.length === 0) return;
                         const morning =
-                          activeShifts.find((s) => s.code.includes("MORNING")) ||
+                          activeShifts.find((s) => s.code.includes("MORNING") || s.code.includes("SANG")) ||
                           activeShifts[0];
-                        const afternoon =
-                          activeShifts.find((s) => s.code.includes("AFTERNOON")) ||
+                        const evening =
+                          activeShifts.find((s) => s.code.includes("EVENING") || s.code.includes("CHIEU")) ||
                           activeShifts[Math.min(1, activeShifts.length - 1)];
                         setScheduleForm((prev) => ({
                           ...prev,
-                          name: "Lịch Ca Xoay Cửa Hàng F&B (6 Ngày)",
+                          name: "Lịch ca xoay F&B (7 ngày)",
                           code: "FNB-ROTATING",
-                          description: "T2-T4 Ca Sáng, T5-T7 Ca Chiều, CN Nghỉ",
+                          description: "T2–T5 Ca Sáng mở quầy, T6–CN Ca Chiều đóng quầy",
                           dayShifts: {
                             1: String(morning.id),
                             2: String(morning.id),
                             3: String(morning.id),
-                            4: String(afternoon.id),
-                            5: String(afternoon.id),
-                            6: String(afternoon.id),
-                            7: "",
+                            4: String(morning.id),
+                            5: String(evening.id),
+                            6: String(evening.id),
+                            7: String(evening.id),
                           },
                         }));
                       }}
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                      className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                     >
-                      Mẫu Ca Xoay F&amp;B (T2–T7)
+                      Mẫu ca xoay (T2–CN)
                     </button>
                     <button
                       type="button"
@@ -542,58 +518,58 @@ export default function Schedules() {
                             3: String(activeShift.id),
                             4: String(activeShift.id),
                             5: String(activeShift.id),
-                            6: "",
-                            7: "",
+                            6: String(activeShift.id),
+                            7: String(activeShift.id),
                           },
                         }));
                       }}
-                      className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                      className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                     >
-                      Auto-fill Mon–Fri
+                      Điền nhanh 7 ngày (T2–CN)
                     </button>
                   </div>
                 )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm font-semibold text-slate-700">
-                  Schedule name
+                <label className="text-xs text-slate-500">
+                  Tên lịch tuần
                   <input
                     required
                     maxLength={100}
-                    placeholder="Standard Office Week"
+                    placeholder="Lịch vận hành F&B 7 ngày"
                     value={scheduleForm.name}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, name: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
                   />
                 </label>
-                <label className="text-sm font-semibold text-slate-700">
-                  Schedule code
+                <label className="text-xs text-slate-500">
+                  Mã lịch tuần
                   <input
                     required
                     maxLength={50}
-                    placeholder="STD-WEEK"
+                    placeholder="FNB-7DAY"
                     value={scheduleForm.code}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, code: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
                   />
                 </label>
-                <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                  Description (optional)
+                <label className="text-xs text-slate-500 sm:col-span-2">
+                  Mô tả
                   <input
-                    placeholder="Monday to Friday 08:00 - 17:00"
+                    placeholder="Vận hành quầy xuyên suốt Thứ 2 đến Chủ Nhật"
                     value={scheduleForm.description}
                     onChange={(e) =>
                       setScheduleForm({ ...scheduleForm, description: e.target.value })
                     }
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
                   />
                 </label>
               </div>
 
-              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Weekly Shift Mapping (Mon – Sun)
+              <div className="mt-4 rounded-md border border-slate-100 bg-slate-50/70 p-3">
+                <p className="mb-2 text-xs text-slate-500">
+                  Phân ca theo ngày trong tuần (T2 – CN)
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {days.map((dayName, idx) => {
@@ -601,7 +577,7 @@ export default function Schedules() {
                     return (
                       <label
                         key={dayName}
-                        className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs"
+                        className="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                       >
                         <span>{dayName}</span>
                         <select
@@ -617,7 +593,7 @@ export default function Schedules() {
                           }
                           className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-800"
                         >
-                          <option value="">Day off</option>
+                          <option value="">Ngày nghỉ</option>
                           {shifts
                             .filter((s) => s.is_active)
                             .map((shift) => (
@@ -639,7 +615,7 @@ export default function Schedules() {
                 </p>
               )}
               {scheduleSuccess && (
-                <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-slate-700">
                   <CheckCircle2 size={16} />
                   {scheduleSuccess}
                 </p>
@@ -648,43 +624,37 @@ export default function Schedules() {
               <button
                 type="submit"
                 disabled={savingSchedule}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+                className="mt-4 inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 <Plus size={16} />
-                {savingSchedule ? "Creating schedule..." : "Create weekly schedule"}
+                {savingSchedule ? "Đang tạo..." : "Tạo lịch"}
               </button>
             </form>
 
             {/* Assign Schedule to Employee Form */}
             <form
               onSubmit={handleAssignSchedule}
-              className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4"
             >
               <div>
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <UserCheck size={20} />
-                  </div>
                   <div>
-                    <h2 className="font-bold text-slate-900">Assign schedule to employee</h2>
-                    <p className="text-sm text-slate-500">
-                      Link an employee to a weekly schedule so Kiosk check-in evaluates their shift automatically.
-                    </p>
+                    <h2 className="text-sm font-semibold text-slate-900">Gán lịch tuần</h2>
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                    Employee
+                  <label className="text-xs text-slate-500 sm:col-span-2">
+                    Nhân sự
                     <select
                       required
                       value={assignForm.employee_id}
                       onChange={(e) =>
                         setAssignForm({ ...assignForm, employee_id: e.target.value })
                       }
-                      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                     >
-                      <option value="">-- Select employee --</option>
+                      <option value="">-- Chọn nhân sự --</option>
                       {employees.map((emp) => (
                         <option key={emp.id} value={emp.id}>
                           {emp.full_name} ({emp.employee_code}
@@ -694,17 +664,17 @@ export default function Schedules() {
                     </select>
                   </label>
 
-                  <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                    Weekly schedule
+                  <label className="text-xs text-slate-500 sm:col-span-2">
+                    Lịch làm việc tuần
                     <select
                       required
                       value={assignForm.schedule_id}
                       onChange={(e) =>
                         setAssignForm({ ...assignForm, schedule_id: e.target.value })
                       }
-                      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                     >
-                      <option value="">-- Select weekly schedule --</option>
+                      <option value="">-- Chọn lịch tuần --</option>
                       {schedules
                         .filter((s) => s.is_active)
                         .map((sched) => (
@@ -715,8 +685,8 @@ export default function Schedules() {
                     </select>
                   </label>
 
-                  <label className="text-sm font-semibold text-slate-700">
-                    Effective from
+                  <label className="text-xs text-slate-500">
+                    Hiệu lực từ ngày
                     <input
                       required
                       type="date"
@@ -724,19 +694,19 @@ export default function Schedules() {
                       onChange={(e) =>
                         setAssignForm({ ...assignForm, effective_from: e.target.value })
                       }
-                      className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
                     />
                   </label>
 
-                  <label className="text-sm font-semibold text-slate-700">
-                    Effective to (optional)
+                  <label className="text-xs text-slate-500">
+                    Đến ngày
                     <input
                       type="date"
                       value={assignForm.effective_to}
                       onChange={(e) =>
                         setAssignForm({ ...assignForm, effective_to: e.target.value })
                       }
-                      className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
                     />
                   </label>
                 </div>
@@ -747,7 +717,7 @@ export default function Schedules() {
                   </p>
                 )}
                 {assignSuccess && (
-                  <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                  <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-slate-700">
                     <CheckCircle2 size={16} />
                     {assignSuccess}
                   </p>
@@ -758,10 +728,10 @@ export default function Schedules() {
                 <button
                   type="submit"
                   disabled={savingAssign || employees.length === 0 || schedules.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                 >
                   <UserCheck size={16} />
-                  {savingAssign ? "Assigning..." : "Assign schedule to employee"}
+                  {savingAssign ? "Đang gán..." : "Gán lịch"}
                 </button>
               </div>
             </form>
@@ -775,16 +745,13 @@ export default function Schedules() {
               return (
                 <article
                   key={schedule.id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-lg border border-slate-200 bg-white"
                 >
                   <div className="flex items-start justify-between border-b border-slate-100 px-5 py-5">
                     <div className="flex gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                        <CalendarDays size={20} />
-                      </div>
                       <div>
-                        <h2 className="font-bold text-slate-900">{schedule.name}</h2>
-                        <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        <h2 className="font-semibold text-slate-900">{schedule.name}</h2>
+                        <p className="mt-1 text-xs font-semibold   text-slate-400">
                           {schedule.code}
                         </p>
                         {schedule.description && (
@@ -793,13 +760,13 @@ export default function Schedules() {
                       </div>
                     </div>
                     <span
-                      className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase ${
+                      className={`rounded-md px-2 py-1 text-[10px] font-semibold  ${
                         schedule.is_active
-                          ? "bg-emerald-50 text-emerald-600"
+                          ? "bg-slate-900 text-white"
                           : "bg-slate-100 text-slate-500"
                       }`}
                     >
-                      {schedule.is_active ? "Active" : "Inactive"}
+                      {schedule.is_active ? "Đang áp dụng" : "Ngưng"}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 divide-y divide-slate-100 px-5 py-2 sm:grid-cols-2 sm:divide-y-0 sm:gap-x-6">
@@ -809,12 +776,12 @@ export default function Schedules() {
                         <div key={day} className="flex items-center justify-between py-3">
                           <span className="text-sm font-semibold text-slate-600">{day}</span>
                           {shift ? (
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                              <Clock3 size={14} className="text-blue-500" />
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                              <Clock3 size={14} className="text-slate-400" />
                               {shift.name} · {formatTime(shift.start_time)}
                             </span>
                           ) : (
-                            <span className="text-xs font-medium text-slate-400">Day off</span>
+                            <span className="text-xs font-medium text-slate-400">Nghỉ</span>
                           )}
                         </div>
                       );
@@ -825,8 +792,8 @@ export default function Schedules() {
             })}
           </div>
           {schedules.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center text-sm text-slate-500">
-              No schedules have been configured yet.
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center text-sm text-slate-500">
+              Chưa có lịch làm việc tuần nào được cấu hình.
             </div>
           )}
         </>

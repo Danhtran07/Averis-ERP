@@ -81,6 +81,7 @@ class AIRecognitionClient:
         error_code = response_data.get("error_code")
         if error_code in {
             "NO_FACE",
+            "FACE_TOO_SMALL",
             "MULTIPLE_FACES",
             "FACE_NOT_RECOGNIZED",
             "AMBIGUOUS_MATCH",

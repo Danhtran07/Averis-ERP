@@ -4,7 +4,6 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-
 import { useState } from "react";
 import {
   CalendarCheck2,
@@ -60,14 +59,14 @@ export default function Layout() {
     );
 
   const isAttendanceActive =
-  location.pathname.startsWith(
-    "/attendance"
-  );
+    location.pathname.startsWith(
+      "/attendance"
+    );
 
-const isUsersActive =
-  location.pathname.startsWith(
-    "/users"
-  );
+  const isUsersActive =
+    location.pathname.startsWith(
+      "/users"
+    );
 
   const isShiftsActive =
     location.pathname.startsWith("/shifts") ||
@@ -129,10 +128,9 @@ const isUsersActive =
           transition-transform duration-200
           lg:translate-x-0
 
-          ${
-            mobileMenuOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+          ${mobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
           }
         `}
       >
@@ -141,55 +139,11 @@ const isUsersActive =
             BRAND
         =================================================== */}
 
-        <div
-          className="
-            flex h-20
-            items-center
-            border-b border-slate-100
-            px-6
-          "
-        >
-
-          <div
-            className="
-              flex h-10 w-10
-              shrink-0
-              items-center justify-center
-              rounded-xl
-              bg-blue-600
-              text-lg font-extrabold
-              text-white
-              shadow-sm
-            "
-          >
+        <div className="flex h-16 items-center border-b border-slate-100 px-5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-900 text-sm font-semibold text-white">
             A
           </div>
-
-          <div className="ml-3">
-
-            <div
-              className="
-                text-lg font-extrabold
-                tracking-tight
-                text-slate-900
-              "
-            >
-              Averis
-            </div>
-
-            <div
-              className="
-                text-[10px]
-                font-semibold
-                uppercase
-                tracking-wider
-                text-slate-400
-              "
-            >
-              Biometric Attendance
-            </div>
-
-          </div>
+          <div className="ml-2.5 text-base font-semibold text-slate-900">Averis</div>
 
           {/* Mobile close */}
 
@@ -212,261 +166,124 @@ const isUsersActive =
 
         </div>
 
-
         {/* ===================================================
-            NAVIGATION
+            NAVIGATION (CLEAN, UNIFORM, SINGLE-COLOR)
         =================================================== */}
 
-        <nav className="flex-1 px-4 py-6">
-
-          <div
-            className="
-              mb-3 px-3
-              text-[10px]
-              font-bold
-              uppercase
-              tracking-[0.12em]
-              text-slate-400
-            "
-          >
-            Main Menu
-          </div>
-
-
-          {/* Dashboard */}
-
+        <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
           <Link
             to="/dashboard"
             onClick={closeMobileMenu}
-            className={`
-              mb-1
-              flex items-center
-              gap-3
-              rounded-xl
-              px-3.5 py-3
-              text-sm font-semibold
-              no-underline
-              transition
-
-              ${
-                isDashboardActive
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
-              }
-            `}
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isDashboardActive
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
           >
-
-            <span
-              className={`
-                flex h-9 w-9
-                items-center justify-center
-                rounded-lg
-                text-lg
-
-                ${
-                  isDashboardActive
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "bg-slate-100 text-slate-500"
-                }
-              `}
-            >
-              <LayoutDashboard size={18} strokeWidth={2} />
-            </span>
-
-            <span>
-              Dashboard
-            </span>
-
+            <LayoutDashboard size={17} strokeWidth={2} />
+            <span>Tổng quan</span>
           </Link>
-
-
-          {/* Face Attendance */}
 
           <Link
             to="/recognition"
             onClick={closeMobileMenu}
-            className="
-              mb-1
-              flex items-center
-              gap-3
-              rounded-xl
-              px-3.5 py-3
-              text-sm font-semibold
-              no-underline
-              transition
-              text-slate-600
-              hover:bg-blue-50
-              hover:text-blue-600
-            "
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${location.pathname === "/recognition"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
           >
-            <span
-              className="
-                flex h-9 w-9
-                items-center justify-center
-                rounded-lg
-                bg-blue-50
-                text-lg
-                text-blue-600
-              "
-            >
-              <ScanFace size={18} strokeWidth={2} />
-            </span>
-
-            <span>
-              Face Attendance
-            </span>
-
+            <ScanFace size={17} strokeWidth={2} />
+            <span>Chấm công</span>
           </Link>
 
+          {role === "ADMIN" ? (
+            <>
+              <Link
+                to="/employees"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isEmployeesActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <UsersRound size={17} strokeWidth={2} />
+                <span>Nhân sự</span>
+              </Link>
 
-          {role === "ADMIN" && (<>
-          {/* Employees */}
+              <Link
+                to="/shifts"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isShiftsActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <Clock3 size={17} strokeWidth={2} />
+                <span>Ca làm việc</span>
+              </Link>
 
-          <Link
-            to="/employees"
-            onClick={closeMobileMenu}
-            className={`
-              flex items-center
-              gap-3
-              rounded-xl
-              px-3.5 py-3
-              text-sm font-semibold
-              no-underline
-              transition
+              <Link
+                to="/schedules"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isSchedulesActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <CalendarDays size={17} strokeWidth={2} />
+                <span>Lịch tuần</span>
+              </Link>
 
-              ${
-                isEmployeesActive
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
-              }
-            `}
-          >
+              <Link
+                to="/attendance"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isAttendanceActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <CalendarCheck2 size={17} strokeWidth={2} />
+                <span>Bảng công</span>
+              </Link>
 
-            <span
-              className={`
-                flex h-9 w-9
-                items-center justify-center
-                rounded-lg
-                text-lg
+              <Link
+                to="/users"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isUsersActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <UsersRound size={17} strokeWidth={2} />
+                <span>Tài khoản</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/my-schedule"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isMyScheduleActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <CalendarDays size={17} strokeWidth={2} />
+                <span>Lịch của tôi</span>
+              </Link>
 
-                ${
-                  isEmployeesActive
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "bg-slate-100 text-slate-500"
-                }
-              `}
-            >
-              <UsersRound size={18} strokeWidth={2} />
-            </span>
-
-            <span>
-              Employees
-            </span>
-
-          </Link>
-          </>)}
-{/* Attendance */}
-
-<Link
-  to="/attendance"
-  onClick={closeMobileMenu}
-  className={`
-    mb-1
-    flex items-center
-    gap-3
-    rounded-xl
-    px-3.5 py-3
-    text-sm font-semibold
-    no-underline
-    transition
-
-    ${
-      isAttendanceActive
-        ? "bg-blue-50 text-blue-600"
-        : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
-    }
-  `}
->
-  <span
-    className={`
-      flex h-9 w-9
-      items-center justify-center
-      rounded-lg
-      text-lg
-
-      ${
-        isAttendanceActive
-          ? "bg-white text-blue-600 shadow-sm"
-          : "bg-slate-100 text-slate-500"
-      }
-    `}
-  >
-    <CalendarCheck2 size={18} strokeWidth={2} />
-  </span>
-
-  <span>
-    {role === "ADMIN" ? "Attendance Calendar" : "My Calendar"}
-  </span>
-</Link>
-{role === "ADMIN" && (<>
-  <Link to="/shifts" onClick={closeMobileMenu} className={`mb-1 flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold no-underline transition ${isShiftsActive ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"}`}>
-    <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isShiftsActive ? "bg-white text-blue-600" : "bg-slate-100 text-slate-500"}`}><Clock3 size={18} strokeWidth={2} /></span>
-    <span>Shifts</span>
-  </Link>
-  <Link to="/schedules" onClick={closeMobileMenu} className={`mb-1 flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold no-underline transition ${isSchedulesActive ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"}`}>
-    <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isSchedulesActive ? "bg-white text-blue-600" : "bg-slate-100 text-slate-500"}`}><CalendarDays size={18} strokeWidth={2} /></span>
-    <span>Schedules</span>
-  </Link>
-</>)}
-{role !== "ADMIN" && (
-  <Link to="/my-schedule" onClick={closeMobileMenu} className={`mb-1 flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold no-underline transition ${isMyScheduleActive ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"}`}>
-    <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isMyScheduleActive ? "bg-white text-blue-600" : "bg-slate-100 text-slate-500"}`}><CalendarDays size={18} strokeWidth={2} /></span>
-    <span>My Schedule</span>
-  </Link>
-)}
-{role === "ADMIN" && (
-  <Link
-    to="/users"
-    onClick={closeMobileMenu}
-    className={`
-      mb-1
-      flex items-center
-      gap-3
-      rounded-xl
-      px-3.5 py-3
-      text-sm font-semibold
-      no-underline
-      transition
-
-      ${
-        isUsersActive
-          ? "bg-blue-50 text-blue-600"
-          : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
-      }
-    `}
-  >
-    <span
-      className={`
-        flex h-9 w-9
-        items-center justify-center
-        rounded-lg
-        text-lg
-
-        ${
-          isUsersActive
-            ? "bg-white text-blue-600 shadow-sm"
-            : "bg-slate-100 text-slate-500"
-        }
-      `}
-    >
-      <UsersRound size={18} strokeWidth={2} />
-    </span>
-
-    <span>
-      Users
-    </span>
-  </Link>
-)}
+              <Link
+                to="/attendance"
+                onClick={closeMobileMenu}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${isAttendanceActive
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+              >
+                <CalendarCheck2 size={17} strokeWidth={2} />
+                <span>Bảng công</span>
+              </Link>
+            </>
+          )}
         </nav>
 
 
@@ -485,7 +302,7 @@ const isUsersActive =
             to="/profile"
             onClick={closeMobileMenu}
             aria-label="Open my profile"
-            className="mb-3 flex items-center gap-3 rounded-xl bg-slate-50 p-3 no-underline transition hover:bg-blue-50"
+            className="mb-3 flex items-center gap-3 rounded-md bg-slate-50 p-3 no-underline transition hover:bg-slate-100"
           >
 
             <div
@@ -494,9 +311,9 @@ const isUsersActive =
                 shrink-0
                 items-center justify-center
                 rounded-full
-                bg-blue-100
-                text-sm font-bold
-                text-blue-600
+                bg-slate-200
+                text-sm font-semibold
+                text-slate-700
               "
             >
               <UserRound size={20} strokeWidth={2} />
@@ -507,7 +324,7 @@ const isUsersActive =
               <div
                 className="
                   truncate
-                  text-sm font-bold
+                  text-sm font-semibold
                   text-slate-800
                 "
               >
@@ -519,12 +336,12 @@ const isUsersActive =
                   mt-0.5
                   text-[11px]
                   font-semibold
-                  uppercase
-                  tracking-wide
+                  
+                  
                   text-slate-400
                 "
               >
-                {role}
+                {role === "ADMIN" ? "Quản trị viên" : "Nhân viên"}
               </div>
 
             </div>
@@ -540,28 +357,22 @@ const isUsersActive =
               items-center
               justify-center
               gap-2
-              rounded-xl
+              rounded-md
               border border-slate-200
               bg-white
               px-4 py-2.5
               text-sm font-semibold
-              text-slate-600
+              text-slate-700
               transition
-
-              hover:border-red-200
-              hover:bg-red-50
-              hover:text-red-600
-
-              focus:outline-none
-              focus:ring-2
-              focus:ring-red-100
+              hover:bg-slate-100
+              hover:text-slate-900
             "
           >
             <span className="text-base">
               <LogOut size={16} strokeWidth={2} />
             </span>
 
-            Logout
+            Đăng xuất
           </button>
 
         </div>
@@ -609,7 +420,7 @@ const isUsersActive =
             className="
               flex h-10 w-10
               items-center justify-center
-              rounded-xl
+              rounded-md
               text-slate-600
               hover:bg-slate-100
               lg:hidden
@@ -622,44 +433,15 @@ const isUsersActive =
           <div
             className="
               hidden
-              text-sm font-bold
-              text-slate-800
+              text-sm font-semibold
+              text-slate-700
               sm:block
             "
           >
-            Averis · Hệ thống quản trị & điểm danh sinh trắc học
+            Hệ thống Quản lý Chấm công Averis
           </div>
 
-
-          <div className="ml-auto flex items-center gap-4">
-
-            {/* System status */}
-
-            <div
-              className="
-                hidden
-                items-center
-                gap-2
-                text-xs font-semibold
-                text-slate-500
-                sm:flex
-              "
-            >
-
-              <span
-                className="
-                  h-2 w-2
-                  rounded-full
-                  bg-emerald-500
-                  shadow-[0_0_0_3px_rgba(16,185,129,0.12)]
-                "
-              />
-
-              System Online
-
-            </div>
-
-
+          <div className="ml-auto flex items-center gap-3">
             {/* User */}
 
             <Link
@@ -673,9 +455,9 @@ const isUsersActive =
                   flex h-8 w-8
                   items-center justify-center
                   rounded-full
-                  bg-blue-100
-                  text-xs font-bold
-                  text-blue-600
+                  bg-slate-200
+                  text-xs font-semibold
+                  text-slate-700
                 "
               >
                 <UserRound size={16} strokeWidth={2} />
@@ -707,7 +489,7 @@ const isUsersActive =
           className="
             min-h-[calc(100vh-4rem)]
             p-4
-            sm:p-6
+            sm:p-4
             lg:p-8
           "
         >
