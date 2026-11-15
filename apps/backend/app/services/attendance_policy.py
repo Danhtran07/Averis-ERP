@@ -6,6 +6,8 @@ from app.models.attendance import AttendanceStatus
 from app.models.shift import Shift
 from app.services.shift_hours import shift_window_for_local_time
 
+MIN_VALID_SHIFT_MINUTES = 180
+
 
 @dataclass(frozen=True)
 class AttendanceMetrics:
@@ -66,10 +68,17 @@ def _elapsed_minutes(
 def calculate_attendance_status(
     check_in: datetime | None,
     shift: Shift | None,
+    check_out: datetime | None = None,
 ) -> AttendanceStatus:
     if check_in is None:
         return AttendanceStatus.ABSENT
-    metrics = calculate_attendance_metrics(check_in, None, shift)
+    metrics = calculate_attendance_metrics(check_in, check_out, shift)
     if metrics.late_minutes > 0:
         return AttendanceStatus.LATE
+    if check_out is not None:
+        tolerance = shift.late_tolerance_minutes if shift is not None else 15
+        if shift is not None and metrics.early_leave_minutes > tolerance:
+            return AttendanceStatus.LATE
+        if metrics.working_minutes < MIN_VALID_SHIFT_MINUTES:
+            return AttendanceStatus.LATE
     return AttendanceStatus.PRESENT

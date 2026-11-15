@@ -122,14 +122,23 @@ def record_recognition_attendance(
         attendance.liveness_score = recognition.liveness_score
         attendance.verification_status = recognition.verification_status
         attendance.session_id = recognition.session_id
+        shift_to_use = attendance.shift or shift or resolve_shift(db, employee.id, attendance.date)
+        if attendance.shift_id is None and shift_to_use is not None:
+            attendance.shift_id = shift_to_use.id
         metrics = calculate_attendance_metrics(
             attendance.check_in,
             server_now,
-            attendance.shift,
+            shift_to_use,
         )
+        attendance.late_minutes = metrics.late_minutes
         attendance.early_leave_minutes = metrics.early_leave_minutes
         attendance.working_minutes = metrics.working_minutes
         attendance.overtime_minutes = metrics.overtime_minutes
+        attendance.status = calculate_attendance_status(
+            attendance.check_in,
+            shift_to_use,
+            server_now,
+        )
     else:
         raise RecognitionRejectedError("Attendance already completed for today", 409)
 

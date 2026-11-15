@@ -418,7 +418,7 @@ export default function Dashboard() {
           </Link>
           <Link
             to="/recognition"
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white no-underline shadow-sm transition hover:bg-indigo-950"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2 text-xs font-semibold text-white no-underline shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
           >
             <ScanFace size={15} strokeWidth={2} aria-hidden="true" />
             Quét khuôn mặt
@@ -448,14 +448,9 @@ export default function Dashboard() {
           {/* 7-DAY ATTENDANCE CHART */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">
-                  Tỷ lệ vào ca 7 ngày trong tuần (T2 – CN)
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Theo dõi chuyên cần xuyên suốt cả tuần vận hành quầy
-                </p>
-              </div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Tỷ lệ vào ca 7 ngày trong tuần (T2 – CN)
+              </h2>
               <Link
                 to="/schedules"
                 className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
@@ -479,14 +474,9 @@ export default function Dashboard() {
           {isAdmin && departmentStats.length > 0 && (
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
               <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">
-                    Nhân sự theo Vị trí / Quầy hôm nay
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Số nhân sự đã check-in tại từng vị trí vận hành
-                  </p>
-                </div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  Nhân sự theo Vị trí / Quầy hôm nay
+                </h2>
                 <Link
                   to="/attendance?tab=timesheet"
                   className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
@@ -538,16 +528,9 @@ export default function Dashboard() {
         {/* RECENT ATTENDANCE FEED */}
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Lượt chấm công gần đây
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {isAdmin
-                  ? "Cập nhật trực tiếp từ Kiosk nhận diện"
-                  : "Lịch sử vào/ra ca gần nhất của bạn"}
-              </p>
-            </div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Lượt chấm công gần đây
+            </h2>
             <Link
               to="/attendance"
               className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
@@ -561,7 +544,7 @@ export default function Dashboard() {
               <div className="py-8">
                 <EmptyState
                   title="Chưa có lượt chấm công"
-                  message="Dữ liệu điểm danh khuôn mặt sẽ hiển thị tại đây."
+                  message=""
                 />
               </div>
             ) : (
@@ -579,6 +562,9 @@ export default function Dashboard() {
                     time={item.check_in ? formatTime(item.check_in) : "—"}
                     checkOut={item.check_out ? formatTime(item.check_out) : null}
                     status={item.status}
+                    lateMinutes={item.late_minutes}
+                    earlyLeaveMinutes={item.early_leave_minutes}
+                    workingMinutes={item.working_minutes}
                   />
                 );
               })
@@ -605,11 +591,6 @@ function StatCard({ stat }: { stat: Statistic }) {
         <div className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
           {stat.value}
         </div>
-        {stat.sub && (
-          <div className="mt-1 truncate text-[11px] font-medium text-slate-400">
-            {stat.sub}
-          </div>
-        )}
       </div>
       <div
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneStyles[stat.tone]}`}
@@ -664,32 +645,55 @@ function Activity({
   time,
   checkOut,
   status,
+  lateMinutes = 0,
+  earlyLeaveMinutes = 0,
+  workingMinutes = 0,
 }: {
   name: string;
   department?: string | null;
   time: string;
   checkOut?: string | null;
   status: string;
+  lateMinutes?: number;
+  earlyLeaveMinutes?: number;
+  workingMinutes?: number;
 }) {
-  const statusMap: Record<string, { label: string; badge: string }> = {
-    PRESENT: {
-      label: "Đúng giờ",
-      badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
-    },
-    LATE: {
-      label: "Đi trễ",
-      badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-    },
-    ABSENT: {
+  const isShortShift = Boolean(checkOut && workingMinutes < 180);
+  const isEarlyLeave = earlyLeaveMinutes > 15;
+  const isLate = lateMinutes > 0 || status === "LATE";
+
+  let statusInfo: { label: string; badge: string };
+  if (status === "ABSENT") {
+    statusInfo = {
       label: "Vắng mặt",
       badge: "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
-    },
-  };
-
-  const statusInfo = statusMap[status] || {
-    label: status,
-    badge: "bg-slate-100 text-slate-600",
-  };
+    };
+  } else if (lateMinutes > 0 && isEarlyLeave) {
+    statusInfo = {
+      label: "Trễ · Về sớm",
+      badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    };
+  } else if (isEarlyLeave) {
+    statusInfo = {
+      label: `Về sớm (${earlyLeaveMinutes}p)`,
+      badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    };
+  } else if (isShortShift && lateMinutes === 0) {
+    statusInfo = {
+      label: `Thiếu giờ (${workingMinutes}p)`,
+      badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    };
+  } else if (isLate) {
+    statusInfo = {
+      label: lateMinutes > 0 ? `Đi trễ (${lateMinutes}p)` : "Đi trễ",
+      badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    };
+  } else {
+    statusInfo = {
+      label: "Đúng giờ",
+      badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    };
+  }
 
   return (
     <div className="flex items-center justify-between py-3.5 text-sm">

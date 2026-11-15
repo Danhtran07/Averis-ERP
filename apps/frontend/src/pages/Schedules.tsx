@@ -299,10 +299,10 @@ export default function Schedules() {
           <button
             type="button"
             onClick={() => setTab("shifts")}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
               tab === "shifts"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
+                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
             }`}
           >
             Ca làm việc
@@ -310,10 +310,10 @@ export default function Schedules() {
           <button
             type="button"
             onClick={() => setTab("schedules")}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
               tab === "schedules"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
+                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
             }`}
           >
             Lịch tuần
@@ -384,7 +384,7 @@ export default function Schedules() {
               </label>
             </div>
             {createError && <p role="alert" className="mt-3 text-sm text-rose-600">{createError}</p>}
-            <button type="submit" disabled={savingShift} className="mt-4 inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+            <button type="submit" disabled={savingShift} className="mt-4 inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-60">
               <Plus size={16} /> {savingShift ? "Đang thêm..." : "Thêm"}
             </button>
           </form>
@@ -624,7 +624,7 @@ export default function Schedules() {
               <button
                 type="submit"
                 disabled={savingSchedule}
-                className="mt-4 inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                className="mt-4 inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-60"
               >
                 <Plus size={16} />
                 {savingSchedule ? "Đang tạo..." : "Tạo lịch"}
@@ -728,7 +728,7 @@ export default function Schedules() {
                 <button
                   type="submit"
                   disabled={savingAssign || employees.length === 0 || schedules.length === 0}
-                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-60"
                 >
                   <UserCheck size={16} />
                   {savingAssign ? "Đang gán..." : "Gán lịch"}

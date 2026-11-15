@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SQLEnum, String, func
+from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -34,6 +34,13 @@ class User(Base):
         SQLEnum(UserRole, name="user_role"),
         nullable=False,
         default=UserRole.EMPLOYEE,
+    )
+
+    store_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("store_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

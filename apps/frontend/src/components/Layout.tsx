@@ -4,7 +4,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarCheck2,
   CalendarDays,
@@ -20,6 +20,8 @@ import {
   X,
 } from "lucide-react";
 
+import { getStoreProfile, type StoreProfile } from "../api/auth.api";
+
 interface StoredUser {
   username?: string;
   role?: string;
@@ -30,6 +32,18 @@ export default function Layout() {
   const navigate = useNavigate();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
+
+  useEffect(() => {
+    const loadStore = () => {
+      getStoreProfile()
+        .then(setStoreProfile)
+        .catch(() => null);
+    };
+    loadStore();
+    window.addEventListener("store-profile-updated", loadStore);
+    return () => window.removeEventListener("store-profile-updated", loadStore);
+  }, []);
 
   const storedUser = localStorage.getItem("user");
 
@@ -76,8 +90,8 @@ export default function Layout() {
   const navItemClass = (active: boolean) =>
     `group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium no-underline transition-all ${
       active
-        ? "bg-slate-900 text-white shadow-sm shadow-slate-900/10"
-        : "text-slate-600 hover:bg-slate-100/90 hover:text-slate-900"
+        ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
+        : "text-slate-600 hover:bg-sky-50/80 hover:text-sky-700"
     }`;
 
   return (
@@ -98,15 +112,12 @@ export default function Layout() {
       >
         {/* BRAND */}
         <div className="flex h-16 items-center border-b border-slate-100 px-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-sm shadow-sky-500/25">
             <Coffee size={18} strokeWidth={2.2} />
           </div>
           <div className="ml-3 min-w-0">
             <div className="truncate text-base font-bold tracking-tight text-slate-900">
-              Averis F&amp;B
-            </div>
-            <div className="truncate text-[11px] font-medium text-slate-400">
-              AI Biometric &amp; Shift Ops
+              {storeProfile?.store_name || "Averis F&B"}
             </div>
           </div>
 
@@ -233,7 +244,7 @@ export default function Layout() {
             aria-label="Open my profile"
             className="mb-2.5 flex items-center gap-3 rounded-xl border border-slate-200/70 bg-slate-50/80 p-2.5 no-underline transition hover:border-slate-300 hover:bg-slate-100/80"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-600 to-blue-600 text-xs font-bold text-white">
               {avatar}
             </div>
 
@@ -278,7 +289,9 @@ export default function Layout() {
 
             <div className="hidden sm:block">
               <div className="text-sm font-semibold text-slate-800">
-                Hệ thống Quản lý Ca &amp; Chấm công Khuôn mặt F&amp;B
+                {storeProfile?.store_name
+                  ? `${storeProfile.store_name} · ${storeProfile.business_type}`
+                  : "Hệ thống Quản lý Ca & Chấm công Khuôn mặt F&B"}
               </div>
             </div>
           </div>
@@ -287,7 +300,7 @@ export default function Layout() {
             {!isRecognitionActive && (
               <Link
                 to="/recognition"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white no-underline shadow-sm transition hover:bg-indigo-950"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white no-underline shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
               >
                 <ScanFace size={15} />
                 <span>Mở Kiosk</span>
@@ -299,7 +312,7 @@ export default function Layout() {
               aria-label="Open my profile"
               className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 py-1.5 pr-3 pl-2 no-underline transition hover:bg-slate-100"
             >
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sky-600 to-blue-600 text-xs font-bold text-white">
                 <UserRound size={14} strokeWidth={2.2} />
               </div>
               <span className="hidden text-xs font-semibold text-slate-700 md:block">

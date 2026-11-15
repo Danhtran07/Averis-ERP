@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_user
+from app.api.routes.auth import get_or_create_store_profile
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token
@@ -87,7 +88,7 @@ def _compute_status(
         employee_id,
         local_now,
     )
-    return calculate_attendance_status(check_in, shift)
+    return calculate_attendance_status(check_in, shift, check_out)
 
 
 def _get_ai_client():
@@ -239,8 +240,17 @@ def get_attendance(
         if employee is None:
             return []
         query = query.filter(Attendance.employee_id == employee.id)
-    elif employee_id is not None:
-        query = query.filter(Attendance.employee_id == employee_id)
+    else:
+        store = get_or_create_store_profile(db, current_user)
+        store_emp_ids = [
+            e.id
+            for e in db.query(Employee.id).filter(Employee.store_id == store.id).all()
+        ]
+        if not store_emp_ids:
+            return []
+        query = query.filter(Attendance.employee_id.in_(store_emp_ids))
+        if employee_id is not None:
+            query = query.filter(Attendance.employee_id == employee_id)
 
     if start_date is not None:
         query = query.filter(Attendance.date >= start_date)
@@ -265,7 +275,7 @@ def recognize_attendance(
     ai_client: AIRecognitionClient = Depends(_get_ai_client),
     current_user: User = Depends(get_current_user),
 ):
-    del current_user
+    store_profile = get_or_create_store_profile(db, current_user)
     image_bytes = image.file.read()
     if not image_bytes or not (image.content_type or "").startswith("image/"):
         raise HTTPException(
@@ -273,12 +283,24 @@ def recognize_attendance(
             detail="A valid image file is required",
         )
 
+    store_emp_ids = [
+        e.id
+        for e in db.query(Employee.id)
+        .filter(Employee.store_id == store_profile.id)
+        .all()
+    ]
     candidates = [
         AIRecognitionCandidate(
             employee_id=face_data.employee_id,
             embedding=face_data.embedding,
         )
-        for face_data in db.query(FaceData).all()
+        for face_data in (
+            db.query(FaceData)
+            .filter(FaceData.employee_id.in_(store_emp_ids))
+            .all()
+            if store_emp_ids
+            else []
+        )
     ]
 
     try:
@@ -318,6 +340,16 @@ def recognize_attendance(
     if not recognition.liveness:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Liveness validation failed")
 
+    if (
+        store_profile is not None
+        and recognition.confidence is not None
+        and recognition.confidence < store_profile.min_face_similarity
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Face similarity ({recognition.confidence * 100:.1f}%) is below store security threshold ({store_profile.min_face_similarity * 100:.0f}%)",
+        )
+
     try:
         attendance = record_recognition_attendance(db, recognition)
     except RecognitionRejectedError as exc:
@@ -351,7 +383,7 @@ def create_liveness_session(
     ai_client: AIRecognitionClient = Depends(_get_ai_client),
     current_user: User = Depends(get_current_user),
 ):
-    del current_user
+    store_profile = get_or_create_store_profile(db, current_user)
     initial_face_image = None
     candidates = None
     if image is not None:
@@ -360,12 +392,24 @@ def create_liveness_session(
         initial_face_image = image.file.read()
         if not initial_face_image:
             raise HTTPException(status_code=400, detail="Empty image data")
+        store_emp_ids = [
+            e.id
+            for e in db.query(Employee.id)
+            .filter(Employee.store_id == store_profile.id)
+            .all()
+        ]
         candidates = [
             AIRecognitionCandidate(
                 employee_id=face_data.employee_id,
                 embedding=face_data.embedding,
             )
-            for face_data in db.query(FaceData).all()
+            for face_data in (
+                db.query(FaceData)
+                .filter(FaceData.employee_id.in_(store_emp_ids))
+                .all()
+                if store_emp_ids
+                else []
+            )
         ]
     try:
         if initial_face_image is None:
@@ -435,10 +479,8 @@ async def liveness_proxy(websocket: WebSocket, session_id: str):
 
 
 def _ensure_requests_table(db: Session) -> None:
-    try:
-        AttendanceRequest.__table__.create(bind=db.get_bind(), checkfirst=True)
-    except Exception:
-        pass
+    del db
+    return
 
 
 def _serialize_request(item: AttendanceRequest) -> AttendanceRequestResponse:
@@ -484,7 +526,8 @@ def get_monthly_timesheet_report(
     first_day = date(year, month, 1)
     last_day = date(year, month, total_days)
 
-    emp_query = db.query(Employee)
+    store = get_or_create_store_profile(db, current_user)
+    emp_query = db.query(Employee).filter(Employee.store_id == store.id)
     if department and department.strip():
         emp_query = emp_query.filter(Employee.department == department.strip())
     employees = emp_query.order_by(Employee.employee_code).all()
@@ -555,9 +598,25 @@ def get_ai_biometrics_metrics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    del current_user
-    records = db.query(Attendance).all()
-    face_rows = db.query(FaceData).all()
+    store = get_or_create_store_profile(db, current_user)
+    store_emp_ids = [
+        e.id
+        for e in db.query(Employee.id).filter(Employee.store_id == store.id).all()
+    ]
+    if store_emp_ids:
+        records = (
+            db.query(Attendance)
+            .filter(Attendance.employee_id.in_(store_emp_ids))
+            .all()
+        )
+        face_rows = (
+            db.query(FaceData)
+            .filter(FaceData.employee_id.in_(store_emp_ids))
+            .all()
+        )
+    else:
+        records = []
+        face_rows = []
 
     similarities = [r.face_similarity for r in records if r.face_similarity is not None]
     liveness_scores = [r.liveness_score for r in records if r.liveness_score is not None]
@@ -629,6 +688,15 @@ def get_attendance_requests(
         if employee is None:
             return []
         query = query.filter(AttendanceRequest.employee_id == employee.id)
+    else:
+        store = get_or_create_store_profile(db, current_user)
+        store_emp_ids = [
+            e.id
+            for e in db.query(Employee.id).filter(Employee.store_id == store.id).all()
+        ]
+        if not store_emp_ids:
+            return []
+        query = query.filter(AttendanceRequest.employee_id.in_(store_emp_ids))
 
     if status_filter is not None:
         query = query.filter(AttendanceRequest.status == status_filter)
@@ -1020,6 +1088,7 @@ def update_attendance(
         attendance.status = calculate_attendance_status(
             attendance.check_in,
             attendance.shift,
+            attendance.check_out,
         )
 
     db.commit()

@@ -24,6 +24,7 @@ import {
   updateAttendance,
 } from "../api/attendance.api";
 import { getEmployeeSchedule, getMySchedule } from "../api/schedule.api";
+import { getStoreProfile } from "../api/auth.api";
 import { getApiErrorMessage } from "../api/error";
 import { getEmployees } from "../api/employee.api";
 import ErrorState from "../components/ErrorState";
@@ -113,20 +114,40 @@ function downloadCsvFile(filename: string, headers: string[], rows: (string | nu
   URL.revokeObjectURL(url);
 }
 
+function getDayStatusLabel(day: AttendanceCalendarDay) {
+  if (!day.has_record) {
+    return day.is_weekend ? "Nghỉ ca" : "Chưa có";
+  }
+  if (day.status === "ABSENT") return "Vắng";
+  const late = day.late_minutes || 0;
+  const early = day.early_leave_minutes || 0;
+  const work = day.working_minutes || 0;
+  const hasOut = Boolean(day.check_out);
+  if (late > 0 && early > 15) return "Trễ · Về sớm";
+  if (early > 15) return "Về sớm";
+  if (hasOut && work < 180 && late === 0) return `Thiếu giờ (${work}p)`;
+  if (late > 0 || day.status === "LATE") return "Đi trễ";
+  return "Đúng giờ";
+}
+
 function statusClass(
-  status: AttendanceStatus,
+  day: AttendanceCalendarDay,
   future: boolean,
-  hasRecord: boolean,
   selected: boolean
 ) {
   const ring = selected ? " ring-2 ring-indigo-600 ring-offset-1 shadow-xs" : "";
   if (future) return `border-slate-100 bg-slate-50/40 text-slate-400${ring}`;
-  if (!hasRecord) return `border-slate-200/80 bg-white text-slate-500${ring}`;
-  if (status === "PRESENT")
-    return `border-emerald-200 bg-emerald-50/80 text-emerald-950${ring}`;
-  if (status === "LATE")
+  if (!day.has_record) return `border-slate-200/80 bg-white text-slate-500${ring}`;
+  if (day.status === "ABSENT")
+    return `border-rose-200 bg-rose-50/80 text-rose-900${ring}`;
+  const isWarning =
+    day.status === "LATE" ||
+    (day.late_minutes || 0) > 0 ||
+    (day.early_leave_minutes || 0) > 15 ||
+    Boolean(day.check_out && (day.working_minutes || 0) < 180);
+  if (isWarning)
     return `border-amber-300 bg-amber-50/90 text-amber-950${ring}`;
-  return `border-rose-200 bg-rose-50/80 text-rose-900${ring}`;
+  return `border-emerald-200 bg-emerald-50/80 text-emerald-950${ring}`;
 }
 
 export default function Attendance() {
@@ -300,6 +321,13 @@ export default function Attendance() {
 
   useEffect(() => {
     void loadRequests();
+    getStoreProfile()
+      .then((store) => {
+        if (store?.default_hourly_rate && store.default_hourly_rate > 0) {
+          setHourlyRateVnd(store.default_hourly_rate);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   const departments = useMemo(() => {
@@ -687,8 +715,8 @@ export default function Attendance() {
             onClick={() => setTab("calendar")}
             className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
               activeTab === "calendar"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-100"
+                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
+                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
             }`}
           >
             <CalendarDays size={15} />
@@ -700,8 +728,8 @@ export default function Attendance() {
               onClick={() => setTab("timesheet")}
               className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeTab === "timesheet"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
+                  ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
+                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
               }`}
             >
               <FileSpreadsheet size={15} />
@@ -713,8 +741,8 @@ export default function Attendance() {
             onClick={() => setTab("requests")}
             className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
               activeTab === "requests"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-100"
+                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
+                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
             }`}
           >
             <FileText size={15} />
@@ -723,8 +751,8 @@ export default function Attendance() {
               <span
                 className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                   activeTab === "requests"
-                    ? "bg-white text-slate-900"
-                    : "bg-slate-200 text-slate-800"
+                    ? "bg-white text-sky-700"
+                    : "bg-sky-100 text-sky-800"
                 }`}
               >
                 {pendingCount}
@@ -788,16 +816,17 @@ export default function Attendance() {
                 <span className="text-xs font-medium text-slate-600">
                   Đơn giá giờ:
                 </span>
-                <select
-                  value={hourlyRateVnd}
-                  onChange={(e) => setHourlyRateVnd(Number(e.target.value))}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
-                >
-                  <option value={28000}>28.000đ/h</option>
-                  <option value={35000}>35.000đ/h</option>
-                  <option value={45000}>45.000đ/h</option>
-                  <option value={60000}>60.000đ/h</option>
-                </select>
+                <input
+                  type="number"
+                  min={1000}
+                  max={1000000}
+                  step={500}
+                  value={hourlyRateVnd || ""}
+                  onChange={(e) => setHourlyRateVnd(Math.max(0, Number(e.target.value) || 0))}
+                  placeholder="Nhập VNĐ/h"
+                  className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right text-xs font-semibold text-slate-800 outline-none focus:border-slate-400"
+                />
+                <span className="text-xs font-semibold text-slate-500">đ/h</span>
               </div>
 
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
@@ -815,7 +844,7 @@ export default function Attendance() {
               type="button"
               onClick={handleExportCompanyReportCsv}
               disabled={!report || report.rows.length === 0}
-              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-50"
             >
               <Download size={15} />
               Xuất CSV
@@ -1002,7 +1031,7 @@ export default function Attendance() {
                 <button
                   type="button"
                   onClick={() => openRequestModalForDay(selectedDate)}
-                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800"
+                  className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
                 >
                   <Send size={14} />
                   + Tạo đơn mới
@@ -1115,7 +1144,7 @@ export default function Attendance() {
                               type="button"
                               disabled={reviewingId === item.id}
                               onClick={() => void handleReviewRequest(item.id, "APPROVED")}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-50"
                             >
                               <CheckCircle2 size={14} />
                               Duyệt
@@ -1343,9 +1372,8 @@ export default function Attendance() {
                               {day && (
                                 <div
                                   className={`flex h-full min-h-[96px] flex-col rounded-md border p-2 ${statusClass(
-                                    day.status,
+                                    day,
                                     future,
-                                    day.has_record,
                                     selected
                                   )}`}
                                 >
@@ -1353,18 +1381,8 @@ export default function Attendance() {
                                     <span className="text-sm font-semibold">
                                       {Number(date.slice(-2))}
                                     </span>
-                                    <span className="text-[10px] font-semibold ">
-                                      {future
-                                        ? "Sắp tới"
-                                        : day.has_record
-                                          ? day.status === "PRESENT"
-                                            ? "Đúng giờ"
-                                            : day.status === "LATE"
-                                              ? "Đi trễ"
-                                              : "Vắng"
-                                          : day.is_weekend
-                                            ? "Nghỉ ca"
-                                            : "Chưa có"}
+                                    <span className="text-[10px] font-semibold">
+                                      {future ? "Sắp tới" : getDayStatusLabel(day)}
                                     </span>
                                   </div>
                                   <div className="mt-auto text-xs">
@@ -1493,17 +1511,7 @@ export default function Attendance() {
                         </div>
                         <div className="flex justify-between">
                           <span>Trạng thái:</span>
-                          <strong>
-                            {selectedDay.has_record
-                              ? selectedDay.status === "PRESENT"
-                                ? "Đúng giờ"
-                                : selectedDay.status === "LATE"
-                                  ? "Đi trễ"
-                                  : "Vắng"
-                              : selectedDay.is_weekend
-                                ? "Nghỉ ca"
-                                : "Chưa có dữ liệu"}
-                          </strong>
+                          <strong>{getDayStatusLabel(selectedDay)}</strong>
                         </div>
                         {selectedDay.has_record && (
                           <>
@@ -1514,13 +1522,19 @@ export default function Attendance() {
                               </strong>
                             </div>
                             {(selectedDay.late_minutes || 0) > 0 && (
-                              <div className="flex justify-between text-slate-700">
+                              <div className="flex justify-between text-amber-700">
                                 <span>Số phút đi trễ:</span>
                                 <strong>{selectedDay.late_minutes} phút</strong>
                               </div>
                             )}
+                            {(selectedDay.early_leave_minutes || 0) > 0 && (
+                              <div className="flex justify-between text-amber-700">
+                                <span>Số phút về sớm:</span>
+                                <strong>{selectedDay.early_leave_minutes} phút</strong>
+                              </div>
+                            )}
                             {(selectedDay.overtime_minutes || 0) > 0 && (
-                              <div className="flex justify-between text-slate-700">
+                              <div className="flex justify-between text-emerald-700">
                                 <span>Tăng ca:</span>
                                 <strong>
                                   {formatMinutes(selectedDay.overtime_minutes)}
@@ -1546,7 +1560,7 @@ export default function Attendance() {
                       <button
                         type="button"
                         onClick={() => openEditor(selectedDay)}
-                        className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                        className="mt-4 w-full rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
                       >
                         {selectedDay.has_record ? "Sửa" : "Thêm"}
                       </button>
@@ -1662,7 +1676,7 @@ export default function Attendance() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  className="rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-50"
                 >
                   {saving ? "Đang lưu..." : "Lưu"}
                 </button>
@@ -1815,7 +1829,7 @@ export default function Attendance() {
               <button
                 type="submit"
                 disabled={requestSubmitting}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-50"
               >
                 {requestSubmitting ? "Đang gửi..." : "Gửi"}
               </button>

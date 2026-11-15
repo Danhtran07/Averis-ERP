@@ -162,7 +162,7 @@ export default function EmployeeSchedule() {
             </div>
           </div>
           {shift && (
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm shadow-sky-600/20">
               <Clock3 size={14} />
               Có ca làm việc
             </span>
@@ -240,9 +240,9 @@ export default function EmployeeSchedule() {
                 onClick={() => setTargetDate(dayItem.date)}
                 className={`flex flex-col justify-between rounded-md border p-3.5 text-left transition ${
                   isSelected
-                    ? "border-slate-900 bg-slate-900 text-white"
+                    ? "border-sky-600 bg-gradient-to-br from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
                     : dayShift
-                      ? "border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50"
+                      ? "border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/40"
                       : "border-slate-100 bg-slate-50/70 text-slate-400 hover:border-slate-200"
                 }`}
               >

@@ -268,7 +268,7 @@ export default function Users() {
         <button
           type="button"
           onClick={openCreateModal}
-          className="rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
         >
           + Thêm tài khoản
         </button>
@@ -379,7 +379,7 @@ export default function Users() {
                         className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${
                           user.role ===
                           "ADMIN"
-                            ? "bg-slate-900 text-white"
+                            ? "bg-sky-600 text-white"
                             : "bg-slate-100 text-slate-700"
                         }`}
                       >
@@ -536,7 +536,7 @@ export default function Users() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-md bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving
                     ? "Đang lưu..."

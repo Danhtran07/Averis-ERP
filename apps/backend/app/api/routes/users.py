@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_admin
+from app.api.routes.auth import get_or_create_store_profile
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.employee import Employee
@@ -25,6 +26,7 @@ def _create_employee_profile(db: Session, user: User) -> None:
             employee_code=f"EMP-{user.id:04d}",
             full_name=user.username,
             email=f"{user.username}@local.invalid",
+            store_id=user.store_id,
         )
     )
 
@@ -37,7 +39,8 @@ def get_users(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
-    return db.query(User).all()
+    store = get_or_create_store_profile(db, current_admin)
+    return db.query(User).filter(User.store_id == store.id).all()
 
 
 @router.get(
@@ -86,10 +89,12 @@ def create_user(
             detail="Username already exists",
         )
 
+    store = get_or_create_store_profile(db, current_admin)
     user = User(
         username=payload.username,
         password_hash=hash_password(payload.password),
         role=payload.role,
+        store_id=store.id,
     )
 
     db.add(user)

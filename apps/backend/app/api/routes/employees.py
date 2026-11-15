@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_user
+from app.api.routes.auth import get_or_create_store_profile
 from app.core.database import get_db
 from app.models.employee import Employee
 from app.models.face_data import FaceData
@@ -79,6 +80,14 @@ def _require_admin(current_user: User) -> None:
         )
 
 
+def _get_store_id(db: Session, current_user: User) -> int:
+    store = get_or_create_store_profile(db, current_user)
+    if current_user.store_id != store.id:
+        current_user.store_id = store.id
+        db.commit()
+    return store.id
+
+
 @router.get(
     "",
     response_model=list[EmployeeResponse],
@@ -88,7 +97,8 @@ def get_employees(
     current_user: User = Depends(get_current_user),
 ):
     _require_admin(current_user)
-    return db.query(Employee).all()
+    store_id = _get_store_id(db, current_user)
+    return db.query(Employee).filter(Employee.store_id == store_id).all()
 
 
 @router.post("/{employee_id}/face", status_code=status.HTTP_201_CREATED)
@@ -189,6 +199,7 @@ def create_employee(
     current_user: User = Depends(get_current_user),
 ):
     _require_admin(current_user)
+    store_id = _get_store_id(db, current_user)
     user = (
         db.query(User)
         .filter(User.id == payload.user_id)
@@ -200,6 +211,8 @@ def create_employee(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+
+    user.store_id = store_id
 
     existing_by_user = (
         db.query(Employee)
@@ -226,6 +239,7 @@ def create_employee(
         existing_by_user.full_name = payload.full_name
         existing_by_user.email = payload.email
         existing_by_user.department = payload.department
+        existing_by_user.store_id = store_id
         db.commit()
         db.refresh(existing_by_user)
         return existing_by_user
@@ -252,6 +266,7 @@ def create_employee(
         full_name=payload.full_name,
         email=payload.email,
         department=payload.department,
+        store_id=store_id,
     )
 
     db.add(employee)

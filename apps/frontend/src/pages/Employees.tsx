@@ -1036,12 +1036,13 @@ export default function Employees() {
             items-center
             justify-center
             rounded-md
-            bg-slate-900
+            bg-gradient-to-r from-sky-600 to-blue-600
             px-4 py-2
             text-sm font-semibold
             text-white
+            shadow-sm shadow-sky-600/20
             transition
-            hover:bg-slate-800
+            hover:from-sky-700 hover:to-blue-700
             disabled:cursor-not-allowed
             disabled:opacity-50
           "
@@ -1106,9 +1107,9 @@ export default function Employees() {
                     key={step.challenge}
                     className={`rounded-full px-2.5 py-1 ${
                       enrollmentChallenge === step.challenge
-                        ? "bg-slate-200 text-slate-900"
+                        ? "bg-sky-100 text-sky-800"
                         : enrollmentChallenge === "COMPLETE" || enrollmentChallengeIndex > index
-                          ? "bg-slate-900 text-white"
+                          ? "bg-sky-600 text-white"
                           : "bg-slate-100 text-slate-400"
                     }`}
                   >
@@ -1446,12 +1447,13 @@ export default function Employees() {
               className="
                 mt-5
                 rounded-md
-                bg-slate-900
+                bg-gradient-to-r from-sky-600 to-blue-600
                 px-4 py-2
                 text-sm font-semibold
                 text-white
+                shadow-sm shadow-sky-600/20
                 transition
-                hover:bg-slate-800
+                hover:from-sky-700 hover:to-blue-700
               "
             >
               Thử lại
@@ -1531,12 +1533,13 @@ export default function Employees() {
                   className="
                     mt-5
                     rounded-md
-                    bg-slate-900
+                    bg-gradient-to-r from-sky-600 to-blue-600
                     px-4 py-2
                     text-sm font-semibold
                     text-white
+                    shadow-sm shadow-sky-600/20
                     transition
-                    hover:bg-slate-800
+                    hover:from-sky-700 hover:to-blue-700
                   "
                 >
                   + Thêm nhân sự
@@ -2264,7 +2267,7 @@ export default function Employees() {
                           onClick={() => setUserLinkMode("existing")}
                           className={`rounded-md px-2.5 py-1 transition ${
                             userLinkMode === "existing"
-                              ? "bg-slate-900 text-white"
+                              ? "bg-sky-600 text-white"
                               : "text-slate-600 hover:bg-slate-50"
                           }`}
                         >
@@ -2275,7 +2278,7 @@ export default function Employees() {
                           onClick={() => setUserLinkMode("new")}
                           className={`rounded-md px-2.5 py-1 transition ${
                             userLinkMode === "new"
-                              ? "bg-slate-900 text-white"
+                              ? "bg-sky-600 text-white"
                               : "text-slate-600 hover:bg-slate-50"
                           }`}
                         >
@@ -2415,12 +2418,13 @@ export default function Employees() {
                     justify-center
                     gap-2
                     rounded-md
-                    bg-slate-900
+                    bg-gradient-to-r from-sky-600 to-blue-600
                     px-4 py-2
                     text-sm font-semibold
                     text-white
+                    shadow-sm shadow-sky-600/20
                     transition
-                    hover:bg-slate-800
+                    hover:from-sky-700 hover:to-blue-700
                     disabled:cursor-not-allowed
                     disabled:opacity-60
                   "

@@ -494,7 +494,7 @@ export default function App() {
             <button
               type="button"
               onClick={reset}
-              className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="w-full rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
             >
               Quét tiếp
             </button>
@@ -515,10 +515,10 @@ export default function App() {
               type="button"
               disabled={state === "camera"}
               onClick={() => setFastMode(false)}
-              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs ${
+              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition ${
                 !fastMode
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-sky-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
               } disabled:opacity-50`}
             >
               <ShieldCheck size={14} />
@@ -528,10 +528,10 @@ export default function App() {
               type="button"
               disabled={state === "camera"}
               onClick={() => setFastMode(true)}
-              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs ${
+              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition ${
                 fastMode
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-sky-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
               } disabled:opacity-50`}
             >
               <Zap size={14} />
@@ -540,10 +540,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => setKioskMode((v) => !v)}
-              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs ${
+              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition ${
                 kioskMode
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-sky-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
               }`}
             >
               <RefreshCw size={13} />
@@ -576,7 +576,7 @@ export default function App() {
                 type="button"
                 onClick={capture}
                 disabled={!livenessComplete}
-                className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="mt-4 w-full rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:from-slate-300 disabled:to-slate-300"
               >
                 {livenessComplete ? "Chấm công" : "Đang xác thực..."}
               </button>}
@@ -592,9 +592,9 @@ export default function App() {
                           aria-current={current ? "step" : undefined}
                           className={`rounded-lg border px-2 py-2 text-center text-xs font-semibold sm:px-3 ${
                             completed
-                              ? "border-slate-900 bg-slate-900 text-white"
+                              ? "border-sky-600 bg-sky-600 text-white"
                               : current
-                                ? "border-slate-400 bg-white text-slate-900 ring-1 ring-slate-900"
+                                ? "border-sky-400 bg-white text-sky-700 ring-1 ring-sky-600"
                                 : "border-slate-200 bg-slate-100 text-slate-400"
                           }`}
                         >
@@ -616,7 +616,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={startCamera}
-                className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
               >
                 <ScanFace size={16} />
                 Bắt đầu quét
