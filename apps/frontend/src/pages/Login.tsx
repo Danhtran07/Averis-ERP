@@ -22,7 +22,7 @@ const REGISTER_STEPS = [
 
 const SERVICE_PLANS = [
   { id: "STARTER", title: "Starter", desc: "1 cơ sở · Chấm công AI" },
-  { id: "PROFESSIONAL", title: "Pro F&B", desc: "3D Liveness · Tính lương" },
+  { id: "PROFESSIONAL", title: "Pro", desc: "3D Liveness · Tính lương" },
   { id: "ENTERPRISE", title: "Enterprise", desc: "Đa chi nhánh" },
 ] as const;
 
@@ -224,7 +224,7 @@ export default function Login() {
             <Coffee size={24} strokeWidth={2.2} />
           </div>
           <div className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
-            Averis F&amp;B
+            Averis
           </div>
         </div>
 
@@ -447,7 +447,7 @@ export default function Login() {
 
                     <div>
                       <label className="mb-1 block text-xs font-semibold text-slate-700">
-                        Mô hình F&amp;B
+                        Mô hình kinh doanh
                       </label>
                       <select
                         value={regForm.business_type}
@@ -462,7 +462,7 @@ export default function Login() {
                         <option value="Nhà hàng / Bistro">Nhà hàng / Bistro</option>
                         <option value="Tiệm bánh / Bakery">Tiệm bánh / Bakery</option>
                         <option value="Lounge / Pub / Bar">Lounge / Pub / Bar</option>
-                        <option value="Chuỗi cửa hàng F&B">Chuỗi F&amp;B</option>
+                        <option value="Chuỗi cửa hàng">Chuỗi cửa hàng</option>
                       </select>
                     </div>
 

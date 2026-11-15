@@ -39,7 +39,7 @@ export default function Profile() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
   const [storeForm, setStoreForm] = useState<StoreProfileUpdatePayload>({
-    store_name: "Averis F&B",
+    store_name: "Averis",
     company_name: "",
     tax_code: "",
     business_type: "Quán Cà phê / Trà sữa",
@@ -69,7 +69,7 @@ export default function Profile() {
         const storeData = await getStoreProfile().catch(() => null);
         if (storeData) {
           setStoreForm({
-            store_name: storeData.store_name || "Averis F&B",
+            store_name: storeData.store_name || "Averis",
             company_name: storeData.company_name || "",
             tax_code: storeData.tax_code || "",
             business_type: storeData.business_type || "Quán Cà phê / Trà sữa",
@@ -195,7 +195,7 @@ export default function Profile() {
         min_face_similarity: updated.min_face_similarity,
       });
       window.dispatchEvent(new Event("store-profile-updated"));
-      setStoreSuccess("Đã lưu hồ sơ pháp nhân doanh nghiệp và đồng bộ cấu hình dịch vụ F&B.");
+      setStoreSuccess("Đã lưu hồ sơ pháp nhân doanh nghiệp và đồng bộ cấu hình dịch vụ.");
     } catch (err) {
       setStoreError(getApiErrorMessage(err, "Không thể cập nhật cấu hình doanh nghiệp."));
     } finally {
@@ -272,7 +272,7 @@ export default function Profile() {
 
               <label>
                 <span className="mb-1.5 block text-sm font-semibold text-slate-700">
-                  Mô hình F&amp;B
+                  Mô hình kinh doanh
                 </span>
                 <select
                   value={storeForm.business_type}
@@ -283,7 +283,7 @@ export default function Profile() {
                   <option value="Nhà hàng / Bistro">Nhà hàng / Bistro</option>
                   <option value="Tiệm bánh / Bakery">Tiệm bánh / Bakery</option>
                   <option value="Lounge / Pub / Bar">Lounge / Pub / Bar</option>
-                  <option value="Chuỗi cửa hàng F&B">Chuỗi F&amp;B</option>
+                  <option value="Chuỗi cửa hàng">Chuỗi cửa hàng</option>
                 </select>
               </label>
 
@@ -297,7 +297,7 @@ export default function Profile() {
                   className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400"
                 >
                   <option value="STARTER">Starter (1 cơ sở)</option>
-                  <option value="PROFESSIONAL">Pro F&amp;B</option>
+                  <option value="PROFESSIONAL">Pro</option>
                   <option value="ENTERPRISE">Enterprise (Chuỗi)</option>
                 </select>
               </label>

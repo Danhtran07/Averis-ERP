@@ -117,7 +117,7 @@ export default function Layout() {
           </div>
           <div className="ml-3 min-w-0">
             <div className="truncate text-base font-bold tracking-tight text-slate-900">
-              {storeProfile?.store_name || "Averis F&B"}
+              {storeProfile?.store_name || "Averis"}
             </div>
           </div>
 
@@ -180,7 +180,7 @@ export default function Layout() {
                 className={navItemClass(isShiftsActive)}
               >
                 <Clock3 size={17} strokeWidth={2} />
-                <span>Ca làm việc F&amp;B</span>
+                <span>Ca làm việc</span>
               </Link>
 
               <Link
@@ -258,7 +258,7 @@ export default function Layout() {
                     role === "ADMIN" ? "bg-indigo-500" : "bg-emerald-500"
                   }`}
                 />
-                {role === "ADMIN" ? "Quản lý / Admin" : "Nhân sự F&B"}
+                {role === "ADMIN" ? "Quản lý / Admin" : "Nhân sự"}
               </div>
             </div>
           </Link>
@@ -291,7 +291,7 @@ export default function Layout() {
               <div className="text-sm font-semibold text-slate-800">
                 {storeProfile?.store_name
                   ? `${storeProfile.store_name} · ${storeProfile.business_type}`
-                  : "Hệ thống Quản lý Ca & Chấm công Khuôn mặt F&B"}
+                  : "Hệ thống Quản lý Ca & Chấm công Khuôn mặt"}
               </div>
             </div>
           </div>

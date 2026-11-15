@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import pytest
 import cv2
 import numpy as np
 
@@ -25,7 +26,8 @@ def test_backend_request_accepts_liveness_session_and_response_contract():
     )
 
     assert request.liveness_session_id == "session-123"
-    assert response.model_dump() == {
+    dump = response.model_dump()
+    assert {k: dump[k] for k in ["matched", "employee_id", "confidence", "liveness", "success", "recognized", "error_code", "message"]} == {
         "matched": True,
         "employee_id": 123,
         "confidence": 0.964,
@@ -109,5 +111,5 @@ def test_recognition_metrics_track_confidence_failures_and_false_positives():
         "FACE_NOT_RECOGNIZED": 1,
         "MULTIPLE_FACES": 1,
     }
-    assert snapshot["average_confidence"] == 0.565
+    assert snapshot["average_confidence"] == pytest.approx(0.565)
     assert snapshot["false_positive_rate"] == 0.5

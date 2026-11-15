@@ -249,7 +249,7 @@ def test_immediate_double_scan_before_cooldown_is_rejected(db_session, recogniti
         record_recognition_attendance(
             db_session,
             recognition,
-            datetime(2026, 9, 5, 1, 2, tzinfo=timezone.utc),
+            datetime(2026, 9, 5, 1, 1, tzinfo=timezone.utc),
         )
 
     assert error.value.status_code == 409

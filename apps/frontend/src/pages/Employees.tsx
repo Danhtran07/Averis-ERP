@@ -2225,7 +2225,7 @@ export default function Employees() {
                     disabled={saving}
                     className={inputClassName}
                   >
-                    <option value="">-- Chọn vị trí / quầy F&amp;B --</option>
+                    <option value="">-- Chọn vị trí / quầy --</option>
                     <option value="Pha chế (Barista)">Pha chế (Barista)</option>
                     <option value="Thu ngân (Cashier)">Thu ngân (Cashier)</option>
                     <option value="Phục vụ (Server)">Phục vụ (Server)</option>

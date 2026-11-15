@@ -182,6 +182,7 @@ class CreateVerificationSessionRequest(BaseModel):
 
 class LegacyRecognizeRequest(BaseModel):
     image: str
+    aux_image: Optional[str] = None
     candidates: list[LegacyRecognizeCandidate] = Field(default_factory=list)
     threshold: float = 0.5
     min_margin: float = 0.05

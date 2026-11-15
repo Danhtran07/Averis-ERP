@@ -22,10 +22,14 @@ export async function createLivenessSession(
 export async function recognizeAttendance(
   image: Blob,
   livenessSessionId?: string,
-  fastMode = false
+  fastMode = true,
+  auxImage?: Blob,
 ): Promise<RecognitionAttendanceResponse> {
   const formData = new FormData();
   formData.append("image", image, "face-capture.jpg");
+  if (auxImage) {
+    formData.append("aux_image", auxImage, "face-aux.jpg");
+  }
 
   if (livenessSessionId) {
     formData.append("liveness_session_id", livenessSessionId);

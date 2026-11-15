@@ -145,6 +145,24 @@ def _get_calendar_employee(
     return employee
 
 
+def _get_store_employee_ids(db: Session, store_id: int) -> list[int]:
+    assigned = [
+        e.id for e in db.query(Employee.id).filter(Employee.store_id == store_id).all()
+    ]
+    if assigned:
+        return assigned
+    unassigned = db.query(Employee).filter(Employee.store_id.is_(None)).all()
+    if unassigned:
+        for emp in unassigned:
+            emp.store_id = store_id
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+        return [e.id for e in unassigned]
+    return []
+
+
 @router.get(
     "/calendar",
     response_model=AttendanceCalendarResponse,
@@ -242,10 +260,7 @@ def get_attendance(
         query = query.filter(Attendance.employee_id == employee.id)
     else:
         store = get_or_create_store_profile(db, current_user)
-        store_emp_ids = [
-            e.id
-            for e in db.query(Employee.id).filter(Employee.store_id == store.id).all()
-        ]
+        store_emp_ids = _get_store_employee_ids(db, store.id)
         if not store_emp_ids:
             return []
         query = query.filter(Attendance.employee_id.in_(store_emp_ids))
@@ -269,6 +284,7 @@ def get_attendance(
 )
 def recognize_attendance(
     image: UploadFile = File(...),
+    aux_image: UploadFile | None = File(default=None),
     liveness_session_id: str | None = Form(default=None),
     fast_mode: bool = Form(default=True),
     db: Session = Depends(get_db),
@@ -282,13 +298,9 @@ def recognize_attendance(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A valid image file is required",
         )
+    aux_image_bytes = aux_image.file.read() if aux_image is not None else None
 
-    store_emp_ids = [
-        e.id
-        for e in db.query(Employee.id)
-        .filter(Employee.store_id == store_profile.id)
-        .all()
-    ]
+    store_emp_ids = _get_store_employee_ids(db, store_profile.id)
     candidates = [
         AIRecognitionCandidate(
             employee_id=face_data.employee_id,
@@ -304,12 +316,29 @@ def recognize_attendance(
     ]
 
     try:
-        recognition = ai_client.recognize(
-            image_bytes,
-            candidates,
-            fast_mode=fast_mode,
-            liveness_session_id=liveness_session_id,
-        )
+        if aux_image_bytes:
+            try:
+                recognition = ai_client.recognize(
+                    image_bytes,
+                    candidates,
+                    fast_mode=fast_mode,
+                    liveness_session_id=liveness_session_id,
+                    aux_face_image=aux_image_bytes,
+                )
+            except TypeError:
+                recognition = ai_client.recognize(
+                    image_bytes,
+                    candidates,
+                    fast_mode=fast_mode,
+                    liveness_session_id=liveness_session_id,
+                )
+        else:
+            recognition = ai_client.recognize(
+                image_bytes,
+                candidates,
+                fast_mode=fast_mode,
+                liveness_session_id=liveness_session_id,
+            )
     except AIServiceTimeoutError as exc:
         raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
     except AIServiceUnavailableError as exc:
@@ -392,12 +421,7 @@ def create_liveness_session(
         initial_face_image = image.file.read()
         if not initial_face_image:
             raise HTTPException(status_code=400, detail="Empty image data")
-        store_emp_ids = [
-            e.id
-            for e in db.query(Employee.id)
-            .filter(Employee.store_id == store_profile.id)
-            .all()
-        ]
+        store_emp_ids = _get_store_employee_ids(db, store_profile.id)
         candidates = [
             AIRecognitionCandidate(
                 employee_id=face_data.employee_id,
@@ -527,7 +551,8 @@ def get_monthly_timesheet_report(
     last_day = date(year, month, total_days)
 
     store = get_or_create_store_profile(db, current_user)
-    emp_query = db.query(Employee).filter(Employee.store_id == store.id)
+    store_emp_ids = _get_store_employee_ids(db, store.id)
+    emp_query = db.query(Employee).filter(Employee.id.in_(store_emp_ids))
     if department and department.strip():
         emp_query = emp_query.filter(Employee.department == department.strip())
     employees = emp_query.order_by(Employee.employee_code).all()
@@ -599,10 +624,7 @@ def get_ai_biometrics_metrics(
     current_user: User = Depends(get_current_user),
 ):
     store = get_or_create_store_profile(db, current_user)
-    store_emp_ids = [
-        e.id
-        for e in db.query(Employee.id).filter(Employee.store_id == store.id).all()
-    ]
+    store_emp_ids = _get_store_employee_ids(db, store.id)
     if store_emp_ids:
         records = (
             db.query(Attendance)
@@ -690,10 +712,7 @@ def get_attendance_requests(
         query = query.filter(AttendanceRequest.employee_id == employee.id)
     else:
         store = get_or_create_store_profile(db, current_user)
-        store_emp_ids = [
-            e.id
-            for e in db.query(Employee.id).filter(Employee.store_id == store.id).all()
-        ]
+        store_emp_ids = _get_store_employee_ids(db, store.id)
         if not store_emp_ids:
             return []
         query = query.filter(AttendanceRequest.employee_id.in_(store_emp_ids))

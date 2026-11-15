@@ -87,7 +87,7 @@ def get_or_create_store_profile(
             .first()
         )
         profile = StoreProfile(
-            store_name="Averis F&B",
+            store_name="Averis",
             company_name="Công ty TNHH Dịch vụ Ẩm thực Averis",
             tax_code="0402189650",
             business_type="Quán Cà phê / Trà sữa",
@@ -176,7 +176,7 @@ def _ensure_fnb_shifts_and_schedule(
     if sched is None:
         sched = WorkSchedule(
             code="FNB-7DAY",
-            name="Lịch vận hành F&B 7 ngày",
+            name="Lịch vận hành 7 ngày",
             description="T2–T5 Ca Sáng mở quầy, T6–CN Ca Chiều đóng quầy",
             is_active=True,
         )

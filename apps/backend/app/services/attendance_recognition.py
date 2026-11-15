@@ -18,7 +18,7 @@ from app.services.shift_hours import (
 )
 from app.services.shift_resolver import resolve_shift, resolve_shift_for_punch
 
-MIN_CHECKOUT_COOLDOWN_MINUTES = 5
+MIN_CHECKOUT_COOLDOWN_MINUTES = 2
 
 
 class RecognitionRejectedError(Exception):
@@ -108,12 +108,16 @@ def record_recognition_attendance(
                 to_utc_time(server_now) - to_utc_time(attendance.check_in)
             ).total_seconds()
             if elapsed_seconds < MIN_CHECKOUT_COOLDOWN_MINUTES * 60:
+                remaining_seconds = max(
+                    1,
+                    int(MIN_CHECKOUT_COOLDOWN_MINUTES * 60 - elapsed_seconds),
+                )
                 remaining_mins = max(
                     1,
                     int((MIN_CHECKOUT_COOLDOWN_MINUTES * 60 - elapsed_seconds + 59) // 60),
                 )
                 raise RecognitionRejectedError(
-                    f"Please wait at least {remaining_mins} minute(s) after check-in before checking out",
+                    f"Đã ghi nhận vào ca cho {employee.full_name} ({int(elapsed_seconds)}s trước). Khóa chống quét trùng 2 phút đang bật — vui lòng đợi {remaining_seconds}s nữa nếu muốn ra ca (Please wait at least {remaining_mins} minute(s) after check-in before checking out).",
                     409,
                 )
         attendance.check_out = server_now

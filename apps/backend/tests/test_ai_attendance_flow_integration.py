@@ -41,7 +41,7 @@ class FlowAIClient:
             return AIEnrollmentResult(success=False, error_code="NO_FACE")
         return AIEnrollmentResult(success=True, embedding=embedding)
 
-    def create_liveness_session(self, image=None, candidates=None):
+    def create_liveness_session(self, image=None, candidates=None, **kwargs):
         self.next_session += 1
         session_id = f"integration-session-{self.next_session}"
         employee_id = None
@@ -56,7 +56,7 @@ class FlowAIClient:
             employee_id=employee_id,
         )
 
-    def recognize(self, image, candidates, *, fast_mode=False, liveness_session_id=None):
+    def recognize(self, image, candidates, *, fast_mode=False, liveness_session_id=None, **kwargs):
         session = self.sessions.get(liveness_session_id)
         embedding = self._embedding_for_image(image)
         match = self._match(embedding, candidates)
@@ -215,7 +215,7 @@ def test_enroll_match_blink_and_mouth_liveness_create_attendance(flow, monkeypat
     _enroll(flow)
     session_id = _create_session(flow)
     # Both configured action challenges pass; motion evidence raises score over threshold.
-    result = flow["ai"].complete_liveness(session_id, blink=True, mouth=False, motion=True)
+    result = flow["ai"].complete_liveness(session_id, blink=True, mouth=True, motion=True)
     assert result["is_live"] is True
 
     monkeypatch.setattr(

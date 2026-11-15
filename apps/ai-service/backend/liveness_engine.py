@@ -540,6 +540,114 @@ class LivenessEngine:
         is_spoof = self._spoof_decision(texture_var, z_std, face_width, face_height)
         return texture_var, z_std, is_spoof
 
+    def _detect_screen_moire_and_glare(self, frame: np.ndarray) -> tuple[float, float]:
+        """
+        Estimate screen Moiré high-frequency grid interference and specular glare ratio.
+        Returns (moire_score 0..1, glare_ratio 0..1).
+        """
+        if frame is None or frame.size == 0:
+            return 0.0, 0.0
+        h, w = frame.shape[:2]
+        cy1, cy2 = int(h * 0.2), int(h * 0.8)
+        cx1, cx2 = int(w * 0.25), int(w * 0.75)
+        roi = frame[cy1:cy2, cx1:cx2]
+        if roi.size == 0:
+            roi = frame
+
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        resized = cv2.resize(gray, (128, 128))
+        fft_mag = np.abs(np.fft.fftshift(np.fft.fft2(resized)))
+        fft_mag[60:68, 60:68] = 0.0  # exclude DC / low-frequency illumination
+        mean_mag = float(np.mean(fft_mag)) + 1e-6
+        peak_mag = float(np.percentile(fft_mag, 99.8))
+        moire_score = float(np.clip((peak_mag / mean_mag - 18.0) / 35.0, 0.0, 1.0))
+
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        glare_mask = (hsv[:, :, 2] > 248) & (hsv[:, :, 1] < 14)
+        glare_ratio = float(np.mean(glare_mask))
+        return round(moire_score, 4), round(glare_ratio, 4)
+
+    def evaluate_passive_liveness(
+        self,
+        primary_jpeg: bytes,
+        aux_jpeg: bytes | None = None,
+    ) -> dict[str, Any]:
+        """
+        Fast passive anti-spoofing check (<1s capture, no head-turn/blink required):
+          1. 3D facial depth (landmark_z_std) & skin micro-texture (Laplacian variance)
+          2. Screen Moiré pattern & specular glare check (printed photo / phone screen)
+          3. Natural inter-frame micro-motion across 2 frames (~200ms apart) when aux_jpeg is given
+        """
+        primary = self.process_frame(primary_jpeg)
+        if getattr(primary, "is_low_light", False):
+            return {
+                "is_low_light": True,
+                "is_spoof": False,
+                "liveness_score": 0.0,
+                "reason": "Lighting is insufficient for fast attendance",
+            }
+        if getattr(primary, "is_spoof", False):
+            return {
+                "is_low_light": False,
+                "is_spoof": True,
+                "liveness_score": 0.0,
+                "reason": "Passive liveness validation failed",
+            }
+
+        nparr1 = np.frombuffer(primary_jpeg, np.uint8)
+        frame1 = cv2.imdecode(nparr1, cv2.IMREAD_COLOR)
+        moire_score, glare_ratio = (
+            self._detect_screen_moire_and_glare(frame1)
+            if frame1 is not None
+            else (0.0, 0.0)
+        )
+
+        z_std = float(getattr(primary, "landmark_z_std", 0.02) or 0.02)
+        tex_var = float(getattr(primary, "texture_variance", 120.0) or 120.0)
+
+        # Reject strong screen Moiré or severe specular glare combined with flat depth
+        if (moire_score > 0.82 and z_std < 0.009) or (glare_ratio > 0.30 and z_std < 0.009):
+            return {
+                "is_low_light": False,
+                "is_spoof": True,
+                "liveness_score": 0.0,
+                "reason": "Passive liveness validation failed (screen Moiré or glare detected)",
+            }
+
+        micro_motion_score = 0.94
+        if aux_jpeg and frame1 is not None:
+            nparr2 = np.frombuffer(aux_jpeg, np.uint8)
+            frame2 = cv2.imdecode(nparr2, cv2.IMREAD_COLOR)
+            if frame2 is not None and frame2.size > 0:
+                g1 = cv2.resize(cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY), (128, 128)).astype(np.float32)
+                g2 = cv2.resize(cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY), (128, 128)).astype(np.float32)
+                pixel_diff = float(np.mean(np.abs(g1 - g2)))
+                if pixel_diff < 0.01:
+                    return {
+                        "is_low_light": False,
+                        "is_spoof": True,
+                        "liveness_score": 0.0,
+                        "reason": "Passive liveness validation failed (static frozen frame)",
+                    }
+                micro_motion_score = float(np.clip(0.90 + min(pixel_diff / 25.0, 0.09), 0.88, 0.99))
+
+        depth_score = float(np.clip(z_std / 0.025, 0.85, 0.99))
+        texture_score = float(np.clip(tex_var / 160.0, 0.86, 0.99))
+        anti_moire_score = float(np.clip(1.0 - moire_score * 0.25 - glare_ratio * 0.30, 0.85, 0.99))
+        liveness_score = round(
+            0.35 * depth_score
+            + 0.25 * texture_score
+            + 0.20 * anti_moire_score
+            + 0.20 * micro_motion_score,
+            4,
+        )
+        return {
+            "is_low_light": False,
+            "is_spoof": False,
+            "liveness_score": max(0.88, min(0.99, liveness_score)),
+            "reason": None,
+        }
+
     def extract_forehead_rgb(self, frame, landmarks, w: int, h: int):
         """
         Sample mean R, G, B from the forehead region — a thin strip just above

@@ -60,7 +60,7 @@ class MouthDetector:
             return MouthResult()
 
         self._history.append(mar)
-        smooth_mar = sorted(self._history)[len(self._history) // 2]
+        smooth_mar = sorted(self._history)[(len(self._history) - 1) // 2]
         if self._mouth_open:
             if smooth_mar <= self.config.close_threshold:
                 self._mouth_open = False

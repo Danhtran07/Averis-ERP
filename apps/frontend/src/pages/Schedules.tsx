@@ -68,7 +68,7 @@ export default function Schedules() {
     description: string;
     dayShifts: Record<number, string>;
   }>({
-    name: "Lịch vận hành F&B 7 ngày",
+    name: "Lịch vận hành 7 ngày",
     code: "FNB-7DAY",
     description: "Vận hành quầy xuyên suốt Thứ 2 đến Chủ Nhật",
     dayShifts: {
@@ -359,7 +359,7 @@ export default function Schedules() {
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="text-xs text-slate-500">Loại ca mẫu F&amp;B
+              <label className="text-xs text-slate-500">Loại ca mẫu
                 <select value={template} onChange={(event) => selectTemplate(event.target.value as ShiftTemplateId)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
                   <option value="morning">{SHIFT_TEMPLATES.morning.label}</option>
                   <option value="evening">{SHIFT_TEMPLATES.evening.label}</option>
@@ -403,31 +403,29 @@ export default function Schedules() {
                 {shifts.map((shift) => (
                   <article
                     key={shift.id}
-                    className="flex flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between"
+                    className="grid grid-cols-1 gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_300px_auto] md:items-center md:gap-6"
                   >
-                    <div className="flex items-start gap-4">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-slate-900">{shift.name}</h3>
-                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                            {shift.code}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-slate-900">{shift.name}</h3>
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                          {shift.code}
+                        </span>
+                        {!shift.is_active && (
+                          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-400">
+                            Ngưng hoạt động
                           </span>
-                          {!shift.is_active && (
-                            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-400">
-                              Ngưng hoạt động
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
-                          {shift.is_overnight ? " · ca qua đêm" : ""}
-                        </p>
-                        {shift.description && (
-                          <p className="mt-1 text-sm text-slate-500">{shift.description}</p>
                         )}
                       </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
+                        {shift.is_overnight ? " · ca qua đêm" : ""}
+                      </p>
+                      {shift.description && (
+                        <p className="mt-1 text-sm text-slate-500">{shift.description}</p>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[260px]">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
                       <div className="rounded-md bg-slate-50 px-3 py-2">
                         <p className="text-xs text-slate-500">Cho phép trễ</p>
                         <p className="mt-0.5 font-semibold text-slate-800">
@@ -447,7 +445,7 @@ export default function Schedules() {
                       disabled={!shift.is_active || updatingShiftId === shift.id}
                       aria-label={`Ngưng ${shift.name}`}
                       title={shift.is_active ? "Ngưng kích hoạt ca" : "Ca đã ngưng hoạt động"}
-                      className="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 md:self-center"
+                      className="inline-flex items-center justify-center gap-1.5 justify-self-start rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 md:justify-self-end"
                     >
                       <Trash2 size={14} />
                       {updatingShiftId === shift.id ? "Đang xử lý..." : "Ngưng ca"}
@@ -487,7 +485,7 @@ export default function Schedules() {
                           activeShifts[Math.min(1, activeShifts.length - 1)];
                         setScheduleForm((prev) => ({
                           ...prev,
-                          name: "Lịch ca xoay F&B (7 ngày)",
+                          name: "Lịch ca xoay (7 ngày)",
                           code: "FNB-ROTATING",
                           description: "T2–T5 Ca Sáng mở quầy, T6–CN Ca Chiều đóng quầy",
                           dayShifts: {
@@ -537,7 +535,7 @@ export default function Schedules() {
                   <input
                     required
                     maxLength={100}
-                    placeholder="Lịch vận hành F&B 7 ngày"
+                    placeholder="Lịch vận hành 7 ngày"
                     value={scheduleForm.name}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, name: e.target.value })}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"

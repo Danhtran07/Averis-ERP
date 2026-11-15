@@ -851,12 +851,33 @@ def legacy_recognize(body: LegacyRecognizeRequest):
             True,
         )
 
+    passive_liveness_score = 0.0
     if body.fast_mode:
-        passive_liveness = engine.process_frame(img_bytes)
-        if passive_liveness.is_spoof:
-            return _recognition_error(422, "LIVENESS_FAILED", "Passive liveness validation failed", False)
-        if passive_liveness.is_low_light:
-            return _recognition_error(422, "LOW_LIGHT", "Lighting is insufficient for fast attendance", False)
+        aux_bytes = None
+        if body.aux_image:
+            try:
+                aux_bytes = _decode_image_payload(body.aux_image)
+            except Exception:
+                aux_bytes = None
+        if hasattr(engine, "evaluate_passive_liveness"):
+            passive_eval = engine.evaluate_passive_liveness(img_bytes, aux_bytes)
+            if passive_eval["is_low_light"]:
+                return _recognition_error(422, "LOW_LIGHT", "Lighting is insufficient for fast attendance", False)
+            if passive_eval["is_spoof"]:
+                return _recognition_error(
+                    422,
+                    "LIVENESS_FAILED",
+                    passive_eval.get("reason") or "Passive liveness validation failed",
+                    False,
+                )
+            passive_liveness_score = float(passive_eval.get("liveness_score") or 0.94)
+        else:
+            passive_liveness = engine.process_frame(img_bytes)
+            if passive_liveness.is_spoof:
+                return _recognition_error(422, "LIVENESS_FAILED", "Passive liveness validation failed", False)
+            if passive_liveness.is_low_light:
+                return _recognition_error(422, "LOW_LIGHT", "Lighting is insufficient for fast attendance", False)
+            passive_liveness_score = 0.94
 
     query = np.asarray(result.embedding, dtype=np.float32)
     ranked_matches = _find_best_candidate(query, body.candidates)
@@ -897,7 +918,7 @@ def legacy_recognize(body: LegacyRecognizeRequest):
             employee_id=best_id,
             confidence=round(best_similarity, 4),
             liveness=True,
-            liveness_score=verification_session.liveness_score if verification_session else 0.0,
+            liveness_score=verification_session.liveness_score if verification_session else passive_liveness_score,
             verification_status="VERIFIED" if verification_session else "PASSIVE",
             session_id=body.liveness_session_id,
             success=True,

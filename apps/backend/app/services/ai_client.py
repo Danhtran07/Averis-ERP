@@ -53,8 +53,9 @@ class AIRecognitionClient:
         min_margin: float = 0.05,
         fast_mode: bool = False,
         liveness_session_id: str | None = None,
+        aux_face_image: bytes | None = None,
     ) -> AIRecognitionResult:
-        payload = {
+        payload: dict[str, Any] = {
             "image": base64.b64encode(face_image).decode("ascii"),
             "candidates": [candidate.model_dump() for candidate in candidates],
             "threshold": threshold,
@@ -62,6 +63,8 @@ class AIRecognitionClient:
             "fast_mode": fast_mode,
             "liveness_session_id": liveness_session_id,
         }
+        if aux_face_image:
+            payload["aux_image"] = base64.b64encode(aux_face_image).decode("ascii")
 
         try:
             response = self._client.post(self._endpoint, json=payload)
