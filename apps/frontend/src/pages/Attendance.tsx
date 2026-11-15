@@ -119,12 +119,14 @@ function statusClass(
   hasRecord: boolean,
   selected: boolean
 ) {
-  const ring = selected ? " ring-2 ring-slate-900" : "";
-  if (future) return `border-slate-100 bg-white text-slate-400${ring}`;
-  if (!hasRecord) return `border-slate-200 bg-slate-50 text-slate-400${ring}`;
-  if (status === "PRESENT") return `border-slate-900 bg-slate-900 text-white${ring}`;
-  if (status === "LATE") return `border-slate-400 bg-slate-100 text-slate-900${ring}`;
-  return `border-slate-300 bg-white text-slate-600${ring}`;
+  const ring = selected ? " ring-2 ring-indigo-600 ring-offset-1 shadow-xs" : "";
+  if (future) return `border-slate-100 bg-slate-50/40 text-slate-400${ring}`;
+  if (!hasRecord) return `border-slate-200/80 bg-white text-slate-500${ring}`;
+  if (status === "PRESENT")
+    return `border-emerald-200 bg-emerald-50/80 text-emerald-950${ring}`;
+  if (status === "LATE")
+    return `border-amber-300 bg-amber-50/90 text-amber-950${ring}`;
+  return `border-rose-200 bg-rose-50/80 text-rose-900${ring}`;
 }
 
 export default function Attendance() {
@@ -1070,12 +1072,12 @@ export default function Attendance() {
                           {REQUEST_TYPE_LABELS[item.request_type] || item.request_type}
                         </span>
                         <span
-                          className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                             item.status === "APPROVED"
-                              ? "bg-slate-900 text-white"
+                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                               : item.status === "REJECTED"
-                                ? "border border-slate-200 bg-white text-slate-400 line-through"
-                                : "border border-slate-300 bg-slate-100 text-slate-700"
+                                ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+                                : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
                           }`}
                         >
                           {item.status === "APPROVED"
@@ -1392,18 +1394,22 @@ export default function Attendance() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-3 text-xs font-medium text-slate-500">
-                      <span>
-                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-slate-900" />
+                    <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-600">
+                      <span className="inline-flex items-center">
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
                         Đúng giờ
                       </span>
-                      <span>
-                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full border border-slate-400 bg-slate-200" />
+                      <span className="inline-flex items-center">
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
                         Đi trễ
                       </span>
-                      <span>
-                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full border border-slate-300 bg-white" />
-                        Vắng / Chưa chấm công
+                      <span className="inline-flex items-center">
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-rose-400" />
+                        Vắng mặt
+                      </span>
+                      <span className="inline-flex items-center">
+                        <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full border border-slate-300 bg-slate-100" />
+                        Nghỉ ca / Chưa chấm công
                       </span>
                     </div>
                   </div>

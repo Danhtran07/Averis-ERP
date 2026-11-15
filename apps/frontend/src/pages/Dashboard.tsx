@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ScanFace } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  ScanFace,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react";
 
 import { getEmployees } from "../api/employee.api";
 import {
@@ -31,10 +40,13 @@ interface StoredUser {
 interface Statistic {
   label: string;
   value: string | number;
+  sub?: string;
+  icon: ReactNode;
+  tone: "indigo" | "emerald" | "amber" | "slate";
 }
 
 function formatTime(value: string | null) {
-  if (!value) return "-";
+  if (!value) return "—";
   return new Date(value).toLocaleTimeString("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -65,7 +77,9 @@ export default function Dashboard() {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
-  const [aiMetrics, setAiMetrics] = useState<AIBiometricsMetricsResponse | null>(null);
+  const [aiMetrics, setAiMetrics] = useState<AIBiometricsMetricsResponse | null>(
+    null
+  );
   const [requests, setRequests] = useState<AttendanceRequestItem[]>([]);
   const [mySchedule, setMySchedule] = useState<EmployeeSchedule | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,12 +101,13 @@ export default function Dashboard() {
       setError("");
 
       if (isAdmin) {
-        const [employeeData, attendanceData, aiData, reqData] = await Promise.all([
-          getEmployees(),
-          getAttendances(),
-          getAIBiometricsMetrics().catch(() => null),
-          getAttendanceRequests().catch(() => []),
-        ]);
+        const [employeeData, attendanceData, aiData, reqData] =
+          await Promise.all([
+            getEmployees(),
+            getAttendances(),
+            getAIBiometricsMetrics().catch(() => null),
+            getAttendanceRequests().catch(() => []),
+          ]);
         setEmployees(employeeData);
         setAttendances(attendanceData);
         setAiMetrics(aiData);
@@ -124,13 +139,18 @@ export default function Dashboard() {
   );
 
   const monthAttendances = useMemo(
-    () => attendances.filter((item) => item.date.startsWith(currentMonthPrefix)),
+    () =>
+      attendances.filter((item) => item.date.startsWith(currentMonthPrefix)),
     [attendances, currentMonthPrefix]
   );
 
   const totalEmployees = employees.length;
-  const presentCount = todayAttendances.filter((item) => item.status === "PRESENT").length;
-  const lateCount = todayAttendances.filter((item) => item.status === "LATE").length;
+  const presentCount = todayAttendances.filter(
+    (item) => item.status === "PRESENT"
+  ).length;
+  const lateCount = todayAttendances.filter(
+    (item) => item.status === "LATE"
+  ).length;
 
   const pendingRequestsCount = useMemo(
     () => requests.filter((r) => r.status === "PENDING").length,
@@ -178,7 +198,8 @@ export default function Dashboard() {
   }, [employees, todayAttendances, isAdmin]);
 
   const totalMonthWorkingMinutes = useMemo(
-    () => monthAttendances.reduce((sum, a) => sum + (a.working_minutes || 0), 0),
+    () =>
+      monthAttendances.reduce((sum, a) => sum + (a.working_minutes || 0), 0),
     [monthAttendances]
   );
   const totalMonthLateMinutes = useMemo(
@@ -186,15 +207,40 @@ export default function Dashboard() {
     [monthAttendances]
   );
   const totalMonthOvertimeMinutes = useMemo(
-    () => monthAttendances.reduce((sum, a) => sum + (a.overtime_minutes || 0), 0),
+    () =>
+      monthAttendances.reduce((sum, a) => sum + (a.overtime_minutes || 0), 0),
     [monthAttendances]
   );
 
   const adminStatistics: Statistic[] = [
-    { label: "Nhân sự vào ca hôm nay", value: `${presentCount + lateCount} / ${totalEmployees}` },
-    { label: "Tổng giờ công tháng", value: formatHours(totalMonthWorkingMinutes) },
-    { label: "Phút trễ ca / Tăng ca", value: `${totalMonthLateMinutes}p / ${formatHours(totalMonthOvertimeMinutes)}` },
-    { label: "Đơn chờ duyệt", value: pendingRequestsCount },
+    {
+      label: "Nhân sự vào ca hôm nay",
+      value: `${presentCount + lateCount} / ${totalEmployees}`,
+      sub: `${presentCount} đúng giờ · ${lateCount} trễ ca`,
+      icon: <UsersRound size={18} />,
+      tone: "indigo",
+    },
+    {
+      label: "Tổng giờ công tháng",
+      value: formatHours(totalMonthWorkingMinutes),
+      sub: `${monthAttendances.length} lượt chấm công`,
+      icon: <Clock3 size={18} />,
+      tone: "emerald",
+    },
+    {
+      label: "Phút trễ ca / Tăng ca",
+      value: `${totalMonthLateMinutes}p / ${formatHours(totalMonthOvertimeMinutes)}`,
+      sub: "Thống kê vận hành tháng",
+      icon: <AlertTriangle size={18} />,
+      tone: "amber",
+    },
+    {
+      label: "Đơn từ chờ duyệt",
+      value: pendingRequestsCount,
+      sub: pendingRequestsCount > 0 ? "Cần xử lý phê duyệt" : "Đã xử lý hết",
+      icon: <FileText size={18} />,
+      tone: "slate",
+    },
   ];
 
   const myTodayRecord = todayAttendances[0] || null;
@@ -213,7 +259,7 @@ export default function Dashboard() {
 
   const employeeStatistics: Statistic[] = [
     {
-      label: "Ca hôm nay",
+      label: "Trạng thái ca hôm nay",
       value: myTodayRecord
         ? myTodayRecord.status === "PRESENT"
           ? "Đúng giờ"
@@ -221,10 +267,33 @@ export default function Dashboard() {
             ? "Đi trễ"
             : "Vắng"
         : "Chưa chấm công",
+      sub: mySchedule?.shift
+        ? `${mySchedule.shift.name} (${mySchedule.shift.start_time.slice(0, 5)}–${mySchedule.shift.end_time.slice(0, 5)})`
+        : "Chưa có ca phân công",
+      icon: <CalendarClock size={18} />,
+      tone: myTodayRecord?.status === "PRESENT" ? "emerald" : "indigo",
     },
-    { label: "Tổng giờ làm tháng này", value: formatHours(myWorkingMinutesMonth) },
-    { label: "Phút trễ / Tăng ca", value: `${myLateMinutesMonth}p / ${formatHours(myOvertimeMinutesMonth)}` },
-    { label: "Đơn chờ duyệt", value: pendingRequestsCount },
+    {
+      label: "Tổng giờ làm tháng này",
+      value: formatHours(myWorkingMinutesMonth),
+      sub: `${monthAttendances.length} ca đã ghi nhận`,
+      icon: <Clock3 size={18} />,
+      tone: "emerald",
+    },
+    {
+      label: "Phút trễ / Tăng ca",
+      value: `${myLateMinutesMonth}p / ${formatHours(myOvertimeMinutesMonth)}`,
+      sub: "Tích luỹ trong tháng",
+      icon: <AlertTriangle size={18} />,
+      tone: "amber",
+    },
+    {
+      label: "Đơn chờ duyệt",
+      value: pendingRequestsCount,
+      sub: "Giải trình & đổi ca",
+      icon: <FileText size={18} />,
+      tone: "slate",
+    },
   ];
 
   const recentAttendance = useMemo(() => {
@@ -252,7 +321,9 @@ export default function Dashboard() {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
       const dateString = date.toISOString().split("T")[0];
-      const dayAttendances = attendances.filter((item) => item.date === dateString);
+      const dayAttendances = attendances.filter(
+        (item) => item.date === dateString
+      );
       const validCount = dayAttendances.filter(
         (item) => item.status === "PRESENT" || item.status === "LATE"
       ).length;
@@ -271,7 +342,7 @@ export default function Dashboard() {
   }, [attendances, totalEmployees, isAdmin]);
 
   if (loading) {
-    return <LoadingState message="Đang tải..." />;
+    return <LoadingState message="Đang tải dữ liệu tổng quan..." />;
   }
 
   if (error) {
@@ -288,56 +359,81 @@ export default function Dashboard() {
             aiMetrics.avg_face_similarity > 0
               ? `${(aiMetrics.avg_face_similarity * 100).toFixed(1)}%`
               : "—",
+          sub: "ArcFace 512-D Cosine",
+          icon: <ScanFace size={18} />,
+          tone: "indigo",
         },
         {
-          label: "Điểm xác thực TB",
+          label: "Điểm xác thực Liveness TB",
           value:
             aiMetrics.avg_liveness_score > 0
               ? `${(aiMetrics.avg_liveness_score * 100).toFixed(1)}%`
               : "—",
+          sub: "Anti-Spoofing đa tầng",
+          icon: <ShieldCheck size={18} />,
+          tone: "emerald",
         },
         {
-          label: "Đã đăng ký khuôn mặt",
+          label: "Nhân sự đã đăng ký mặt",
           value: `${aiMetrics.enrolled_employees} / ${totalEmployees}`,
+          sub: `${aiMetrics.total_face_embeddings} mẫu sinh trắc học`,
+          icon: <CheckCircle2 size={18} />,
+          tone: "slate",
         },
       ]
     : [];
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-5">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-[1600px] space-y-6">
+      {/* HEADER */}
+      <header className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Tổng quan</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Tổng quan vận hành F&amp;B
+            </h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              7 ngày / tuần
+            </span>
+          </div>
+          <p className="mt-1 text-xs font-medium text-slate-500 capitalize">
             {displayDate}
             {!isAdmin && mySchedule?.shift && (
-              <>
+              <span className="font-semibold text-indigo-700 normal-case">
                 {" · "}
-                {mySchedule.shift.name} ({mySchedule.shift.start_time.slice(0, 5)}–
-                {mySchedule.shift.end_time.slice(0, 5)})
-              </>
+                {mySchedule.shift.name} ({mySchedule.shift.start_time.slice(0, 5)}
+                –{mySchedule.shift.end_time.slice(0, 5)})
+              </span>
             )}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="hidden text-sm text-slate-500 sm:inline">{username}</span>
+        <div className="flex items-center gap-2.5">
+          <Link
+            to="/attendance"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 no-underline transition hover:bg-slate-50"
+          >
+            Bảng công tháng
+          </Link>
           <Link
             to="/recognition"
-            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white no-underline hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white no-underline shadow-sm transition hover:bg-indigo-950"
           >
-            <ScanFace size={16} strokeWidth={2} aria-hidden="true" />
-            Chấm công
+            <ScanFace size={15} strokeWidth={2} aria-hidden="true" />
+            Quét khuôn mặt
           </Link>
         </div>
       </header>
 
-      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      {/* PRIMARY KPI CARDS */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statistics.map((stat) => (
           <StatCard key={stat.label} stat={stat} />
         ))}
       </section>
 
+      {/* AI BIOMETRIC METRICS STRIP */}
       {isAdmin && biometricStats.length > 0 && (
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {biometricStats.map((stat) => (
@@ -346,45 +442,88 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.3fr_1fr]">
-        <div className="space-y-5">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-slate-900">Chuyên cần 7 ngày</h2>
-            <div className="mt-4 space-y-3">
+      {/* MAIN CONTENT GRID */}
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_1fr]">
+        <div className="space-y-6">
+          {/* 7-DAY ATTENDANCE CHART */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  Tỷ lệ vào ca 7 ngày trong tuần (T2 – CN)
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Theo dõi chuyên cần xuyên suốt cả tuần vận hành quầy
+                </p>
+              </div>
+              <Link
+                to="/schedules"
+                className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
+              >
+                Lịch phân ca →
+              </Link>
+            </div>
+            <div className="mt-5 space-y-3.5">
               {weeklyAttendance.map((item) => (
-                <AttendanceRow key={item.date} day={item.day} percent={item.percent} />
+                <AttendanceRow
+                  key={item.date}
+                  day={item.day}
+                  isToday={item.date === today}
+                  percent={item.percent}
+                />
               ))}
             </div>
           </div>
 
+          {/* STATION BREAKDOWN */}
           {isAdmin && departmentStats.length > 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
               <div className="flex items-center justify-between gap-4">
-                <h2 className="text-sm font-semibold text-slate-900">Theo vị trí / quầy</h2>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Nhân sự theo Vị trí / Quầy hôm nay
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Số nhân sự đã check-in tại từng vị trí vận hành
+                  </p>
+                </div>
                 <Link
                   to="/attendance?tab=timesheet"
-                  className="text-xs text-slate-500 no-underline hover:text-slate-900 hover:underline"
+                  className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
                 >
-                  Bảng công
+                  Bảng lương giờ →
                 </Link>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 grid gap-3.5 sm:grid-cols-2">
                 {departmentStats.map((dept) => {
                   const pct =
-                    dept.total > 0 ? Math.round((dept.checkedIn / dept.total) * 100) : 0;
+                    dept.total > 0
+                      ? Math.round((dept.checkedIn / dept.total) * 100)
+                      : 0;
                   return (
-                    <div key={dept.department} className="space-y-1">
+                    <div
+                      key={dept.department}
+                      className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"
+                    >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-700">{dept.department}</span>
-                        <span className="text-slate-500">
-                          {dept.checkedIn}/{dept.total}
-                          {dept.late > 0 ? ` · ${dept.late} trễ` : ""}
+                        <span className="font-semibold text-slate-800">
+                          {dept.department}
+                        </span>
+                        <span className="font-semibold text-slate-600">
+                          {dept.checkedIn}/{dept.total} ca
+                          {dept.late > 0 ? (
+                            <span className="ml-1 text-amber-600">
+                              · {dept.late} trễ
+                            </span>
+                          ) : (
+                            ""
+                          )}
                         </span>
                       </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-slate-200/80">
                         <div
-                          className="h-full rounded-full bg-slate-800"
+                          className="h-full rounded-full bg-indigo-600 transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -396,21 +535,34 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-sm font-semibold text-slate-900">Chấm công gần đây</h2>
+        {/* RECENT ATTENDANCE FEED */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Lượt chấm công gần đây
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {isAdmin
+                  ? "Cập nhật trực tiếp từ Kiosk nhận diện"
+                  : "Lịch sử vào/ra ca gần nhất của bạn"}
+              </p>
+            </div>
             <Link
               to="/attendance"
-              className="text-xs text-slate-500 no-underline hover:text-slate-900 hover:underline"
+              className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
             >
-              Xem tất cả
+              Xem tất cả →
             </Link>
           </div>
 
           <div className="mt-2 divide-y divide-slate-100">
             {recentAttendance.length === 0 ? (
-              <div className="py-6">
-                <EmptyState title="Chưa có dữ liệu" message="" />
+              <div className="py-8">
+                <EmptyState
+                  title="Chưa có lượt chấm công"
+                  message="Dữ liệu điểm danh khuôn mặt sẽ hiển thị tại đây."
+                />
               </div>
             ) : (
               recentAttendance.map((item) => {
@@ -424,7 +576,7 @@ export default function Dashboard() {
                         : item.date
                     }
                     department={isAdmin ? employee?.department : undefined}
-                    time={item.check_in ? formatTime(item.check_in) : "-"}
+                    time={item.check_in ? formatTime(item.check_in) : "—"}
                     checkOut={item.check_out ? formatTime(item.check_out) : null}
                     status={item.status}
                   />
@@ -439,22 +591,69 @@ export default function Dashboard() {
 }
 
 function StatCard({ stat }: { stat: Statistic }) {
+  const toneStyles: Record<Statistic["tone"], string> = {
+    indigo: "bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100",
+    emerald: "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100",
+    amber: "bg-amber-50 text-amber-600 ring-1 ring-amber-100",
+    slate: "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80",
+  };
+
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="text-xs text-slate-500">{stat.label}</div>
-      <div className="mt-1.5 text-2xl font-semibold text-slate-900">{stat.value}</div>
+    <div className="flex items-start justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300">
+      <div className="min-w-0">
+        <div className="text-xs font-semibold text-slate-500">{stat.label}</div>
+        <div className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+          {stat.value}
+        </div>
+        {stat.sub && (
+          <div className="mt-1 truncate text-[11px] font-medium text-slate-400">
+            {stat.sub}
+          </div>
+        )}
+      </div>
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneStyles[stat.tone]}`}
+      >
+        {stat.icon}
+      </div>
     </div>
   );
 }
 
-function AttendanceRow({ day, percent }: { day: string; percent: number }) {
+function AttendanceRow({
+  day,
+  isToday,
+  percent,
+}: {
+  day: string;
+  isToday?: boolean;
+  percent: number;
+}) {
   return (
-    <div className="grid grid-cols-[90px_1fr_40px] items-center gap-3">
-      <span className="text-xs text-slate-500">{day}</span>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-slate-800" style={{ width: `${percent}%` }} />
+    <div className="grid grid-cols-[105px_1fr_44px] items-center gap-3">
+      <span
+        className={`text-xs capitalize ${
+          isToday ? "font-bold text-indigo-700" : "font-medium text-slate-600"
+        }`}
+      >
+        {day}
+        {isToday ? " (Nay)" : ""}
+      </span>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full transition-all ${
+            percent >= 80
+              ? "bg-emerald-500"
+              : percent > 0
+                ? "bg-indigo-600"
+                : "bg-slate-300"
+          }`}
+          style={{ width: `${percent}%` }}
+        />
       </div>
-      <span className="text-right text-xs text-slate-600">{percent}%</span>
+      <span className="text-right text-xs font-semibold text-slate-700">
+        {percent}%
+      </span>
     </div>
   );
 }
@@ -469,36 +668,51 @@ function Activity({
   name: string;
   department?: string | null;
   time: string;
-  checkOut: string | null;
+  checkOut?: string | null;
   status: string;
 }) {
-  const statusClass =
-    status === "PRESENT"
-      ? "text-slate-900"
-      : status === "LATE"
-        ? "text-amber-700"
-        : "text-slate-400";
+  const statusMap: Record<string, { label: string; badge: string }> = {
+    PRESENT: {
+      label: "Đúng giờ",
+      badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    },
+    LATE: {
+      label: "Đi trễ",
+      badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    },
+    ABSENT: {
+      label: "Vắng mặt",
+      badge: "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
+    },
+  };
 
-  const statusLabel =
-    status === "PRESENT"
-      ? "Đúng giờ"
-      : status === "LATE"
-        ? "Đi trễ"
-        : status === "ABSENT"
-          ? "Vắng"
-          : status;
+  const statusInfo = statusMap[status] || {
+    label: status,
+    badge: "bg-slate-100 text-slate-600",
+  };
 
   return (
-    <div className="flex items-center gap-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-slate-800">{name}</div>
+    <div className="flex items-center justify-between py-3.5 text-sm">
+      <div className="min-w-0">
+        <div className="truncate font-semibold text-slate-900">{name}</div>
         <div className="mt-0.5 text-xs text-slate-500">
-          {department ? `${department} · ` : ""}
-          {time}
-          {checkOut ? ` – ${checkOut}` : ""}
+          {department ? `${department} · ` : ""}Vào <strong>{time}</strong>
+          {checkOut ? (
+            <>
+              {" "}
+              · Ra <strong>{checkOut}</strong>
+            </>
+          ) : (
+            ""
+          )}
         </div>
       </div>
-      <span className={`shrink-0 text-xs font-medium ${statusClass}`}>{statusLabel}</span>
+
+      <span
+        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusInfo.badge}`}
+      >
+        {statusInfo.label}
+      </span>
     </div>
   );
 }

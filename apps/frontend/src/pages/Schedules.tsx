@@ -745,13 +745,13 @@ export default function Schedules() {
               return (
                 <article
                   key={schedule.id}
-                  className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+                  className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs"
                 >
                   <div className="flex items-start justify-between border-b border-slate-100 px-5 py-5">
                     <div className="flex gap-3">
                       <div>
-                        <h2 className="font-semibold text-slate-900">{schedule.name}</h2>
-                        <p className="mt-1 text-xs font-semibold   text-slate-400">
+                        <h2 className="font-bold text-slate-900">{schedule.name}</h2>
+                        <p className="mt-1 font-mono text-xs font-semibold text-indigo-600">
                           {schedule.code}
                         </p>
                         {schedule.description && (
@@ -760,9 +760,9 @@ export default function Schedules() {
                       </div>
                     </div>
                     <span
-                      className={`rounded-md px-2 py-1 text-[10px] font-semibold  ${
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                         schedule.is_active
-                          ? "bg-slate-900 text-white"
+                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                           : "bg-slate-100 text-slate-500"
                       }`}
                     >
@@ -772,16 +772,27 @@ export default function Schedules() {
                   <div className="grid grid-cols-1 divide-y divide-slate-100 px-5 py-2 sm:grid-cols-2 sm:divide-y-0 sm:gap-x-6">
                     {days.map((day, index) => {
                       const shift = rules.get(index + 1)?.shift;
+                      const isMorning = shift?.code.includes("MORNING") || shift?.code.includes("SANG");
+                      const isEvening = shift?.code.includes("EVENING") || shift?.code.includes("CHIEU");
+                      const shiftBadgeClass = isMorning
+                        ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+                        : isEvening
+                          ? "bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200"
+                          : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200";
                       return (
                         <div key={day} className="flex items-center justify-between py-3">
-                          <span className="text-sm font-semibold text-slate-600">{day}</span>
+                          <span className="text-sm font-semibold text-slate-700">{day}</span>
                           {shift ? (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
-                              <Clock3 size={14} className="text-slate-400" />
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${shiftBadgeClass}`}
+                            >
+                              <Clock3 size={13} />
                               {shift.name} · {formatTime(shift.start_time)}
                             </span>
                           ) : (
-                            <span className="text-xs font-medium text-slate-400">Nghỉ</span>
+                            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-400">
+                              Nghỉ ca
+                            </span>
                           )}
                         </div>
                       );
