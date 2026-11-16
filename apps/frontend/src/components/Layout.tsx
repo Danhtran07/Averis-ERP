@@ -18,6 +18,7 @@ import {
   Menu,
   ScanFace,
   ShieldCheck,
+  UserCheck,
   UserRound,
   UsersRound,
   X,
@@ -82,11 +83,15 @@ export default function Layout() {
     !isTimesheetActive &&
     !isRequestsActive;
   const isUsersActive = location.pathname.startsWith("/users");
+  const isRegistrationsActive =
+    location.pathname.startsWith("/schedules") && currentTab === "registrations";
   const isShiftsActive =
     location.pathname.startsWith("/shifts") ||
     (location.pathname.startsWith("/schedules") && currentTab === "shifts");
   const isSchedulesActive =
-    location.pathname.startsWith("/schedules") && !isShiftsActive;
+    location.pathname.startsWith("/schedules") &&
+    !isShiftsActive &&
+    !isRegistrationsActive;
   const isMyScheduleActive =
     location.pathname === "/my-schedule" ||
     (location.pathname.startsWith("/employees/") &&
@@ -215,6 +220,15 @@ export default function Layout() {
                 >
                   <CalendarDays size={17} strokeWidth={2} />
                   <span>Lịch phân ca tuần</span>
+                </Link>
+
+                <Link
+                  to="/schedules?tab=registrations"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isRegistrationsActive)}
+                >
+                  <UserCheck size={17} strokeWidth={2} />
+                  <span>Đăng ký ca tuần tới</span>
                 </Link>
               </div>
 

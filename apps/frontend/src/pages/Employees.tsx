@@ -2302,21 +2302,6 @@ export default function Employees() {
                 </FormField>
 
 
-                {/* Note about salary configuration */}
-                <div className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50/60 p-3 text-xs text-sky-800">
-                  <div className="flex items-center gap-2">
-                    <Banknote size={16} className="text-sky-600 shrink-0" />
-                    <span>Chính sách đãi ngộ &amp; mức lương được cấu hình tại mục <strong>Chính sách lương</strong>.</span>
-                  </div>
-                  <Link
-                    to="/salaries"
-                    className="font-semibold text-sky-700 underline hover:text-sky-900 shrink-0"
-                  >
-                    Mở cấu hình
-                  </Link>
-                </div>
-
-
                 {/* User Account - CREATE ONLY */}
 
                 {!editingEmployee && (

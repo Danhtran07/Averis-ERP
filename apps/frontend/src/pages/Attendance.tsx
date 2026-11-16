@@ -36,6 +36,7 @@ import type {
   AttendanceRequestType,
   AttendanceStatus,
   MonthlyTimesheetReportResponse,
+  MonthlyTimesheetRow,
 } from "../types/attendance";
 import type { Employee } from "../types/employee";
 import type { EmployeeSchedule } from "../types/schedule";
@@ -167,7 +168,7 @@ function statusClass(
 export default function Attendance() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const storedUser = localStorage.getItem("user");
   const isAdmin = (() => {
     try {
@@ -1212,17 +1213,6 @@ export default function Attendance() {
                   ? "Lịch chấm công nhân sự"
                   : "Bảng công của tôi"}
           </h1>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {activeTab === "timesheet"
-              ? "Tổng hợp ngày công, giờ làm thực tế, tăng ca (OT) và ước tính lương toàn cửa hàng"
-              : activeTab === "requests"
-                ? isAdmin
-                  ? "Xem xét và phê duyệt đơn xin nghỉ phép, giải trình đi trễ/về sớm, quên chấm công"
-                  : "Gửi đơn giải trình chấm công hoặc xin nghỉ phép và theo dõi kết quả phê duyệt"
-                : isAdmin
-                  ? "Tra cứu chi tiết giờ vào/ra, trạng thái ca và điều chỉnh chấm công theo ngày"
-                  : "Theo dõi lịch sử chấm công, giờ làm việc và tăng ca theo tháng"}
-          </p>
         </div>
 
         {activeTab === "requests" && pendingCount > 0 && (

@@ -61,4 +61,5 @@ class WorkSchedule(Base):
     assignments = relationship(
         "ScheduleAssignment",
         back_populates="schedule",
+        cascade="all, delete-orphan",
     )

@@ -116,6 +116,12 @@ class Employee(Base):
         cascade="all, delete-orphan",
     )
 
+    shift_registrations: Mapped[list["ShiftRegistration"]] = relationship(
+        "ShiftRegistration",
+        back_populates="employee",
+        cascade="all, delete-orphan",
+    )
+
     @property
     def face_enrolled(self) -> bool:
         return bool(self.face_data)

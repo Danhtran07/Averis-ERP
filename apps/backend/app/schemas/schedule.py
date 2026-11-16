@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
@@ -179,6 +179,19 @@ class ScheduleAssignmentCreate(BaseModel):
         return self
 
 
+class ScheduleAssignmentBatchCreate(BaseModel):
+    employee_ids: list[int] = Field(min_length=1)
+    schedule_id: int
+    effective_from: date
+    effective_to: date | None = None
+
+    @model_validator(mode="after")
+    def valid_range(self):
+        if self.effective_to is not None and self.effective_to < self.effective_from:
+            raise ValueError("effective_to cannot be before effective_from")
+        return self
+
+
 class ScheduleAssignmentResponse(BaseModel):
     id: int
     employee_id: int
@@ -189,6 +202,93 @@ class ScheduleAssignmentResponse(BaseModel):
     schedule: ScheduleResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ShiftRegistrationItem(BaseModel):
+    date: date
+    shift_id: int | None = None
+    note: str | None = Field(default=None, max_length=255)
+
+
+class ShiftRegistrationBatchSubmit(BaseModel):
+    items: list[ShiftRegistrationItem] = Field(min_length=1)
+
+
+class ShiftRegistrationEmployeeBrief(BaseModel):
+    id: int
+    employee_code: str
+    full_name: str
+    department: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShiftRegistrationResponse(BaseModel):
+    id: int
+    employee_id: int
+    shift_id: int | None = None
+    date: date
+    status: str
+    note: str | None = None
+    admin_note: str | None = None
+    shift: ShiftResponse | None = None
+    employee: ShiftRegistrationEmployeeBrief | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShiftRegistrationReviewRequest(BaseModel):
+    registration_ids: list[int] = Field(min_length=1)
+    status: str = Field(pattern="^(APPROVED|REJECTED)$")
+    admin_note: str | None = Field(default=None, max_length=255)
+
+
+class CoworkerScheduleItem(BaseModel):
+    id: int
+    employee_code: str
+    full_name: str
+    department: str | None = None
+    shift: ShiftResponse
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentCoworkersResponse(BaseModel):
+    target_date: date
+    department: str | None = None
+    coworkers: list[CoworkerScheduleItem]
+
+
+class DepartmentRosterDayShift(BaseModel):
+    date: date
+    shift: ShiftResponse | None = None
+    is_off: bool = True
+    registration_status: str | None = None
+    note: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentRosterMember(BaseModel):
+    id: int
+    employee_code: str
+    full_name: str
+    department: str | None = None
+    salary_type: str = "HOURLY"
+    is_self: bool = False
+    schedule: list[DepartmentRosterDayShift] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentWeekRosterResponse(BaseModel):
+    week_start: date
+    week_end: date
+    department: str | None = None
+    days: list[date]
+    members: list[DepartmentRosterMember]
 
 
 def overnight_from_hours(start_time: time, end_time: time) -> bool:

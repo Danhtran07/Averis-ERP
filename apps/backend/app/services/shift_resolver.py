@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.schedule_assignment import ScheduleAssignment
 from app.models.schedule_rule import ScheduleRule
 from app.models.shift import Shift
+from app.models.shift_registration import ShiftRegistration, ShiftRegistrationStatus
 
 
 def resolve_shift(
@@ -12,6 +13,25 @@ def resolve_shift(
     employee_id: int,
     target_date: date,
 ) -> Shift | None:
+    # 1. Check if there is an approved shift registration for this employee and date
+    registration = (
+        db.query(ShiftRegistration)
+        .filter(
+            ShiftRegistration.employee_id == employee_id,
+            ShiftRegistration.date == target_date,
+            ShiftRegistration.status == ShiftRegistrationStatus.APPROVED,
+        )
+        .first()
+    )
+    if registration is not None:
+        if registration.shift_id is None:
+            # Explicitly approved as day off
+            return None
+        if registration.shift is not None and registration.shift.is_active:
+            return registration.shift
+        return None
+
+    # 2. Fall back to recurring schedule assignment and rules
     assignment = (
         db.query(ScheduleAssignment)
         .filter(

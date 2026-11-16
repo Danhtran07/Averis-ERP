@@ -10,6 +10,10 @@ from app.models.shift import Shift
 from app.models.work_schedule import WorkSchedule
 from app.models.schedule_rule import ScheduleRule
 from app.models.schedule_assignment import ScheduleAssignment
+from app.models.shift_registration import (
+    ShiftRegistration,
+    ShiftRegistrationStatus,
+)
 from app.models.store_profile import StoreProfile
 from app.models.user import User, UserRole
 from app.models.user_profile import UserProfile
@@ -30,4 +34,6 @@ __all__ = [
     "WorkSchedule",
     "ScheduleRule",
     "ScheduleAssignment",
+    "ShiftRegistration",
+    "ShiftRegistrationStatus",
 ]

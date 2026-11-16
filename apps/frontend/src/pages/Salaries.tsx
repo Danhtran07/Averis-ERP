@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   Clock3,
   Coins,
-  Filter,
   Info,
   Pencil,
   Search,
@@ -199,56 +198,22 @@ export default function Salaries() {
     }
   }
 
-  // Simulation calculations for modal
-  const simulated = useMemo(() => {
-    if (salaryType === "MONTHLY") {
-      const dailyRate = Math.round(baseSalary / 26);
-      const hourlyEquivalent = Math.round(baseSalary / (26 * 8));
-      const otRate = Math.round(hourlyEquivalent * 1.5);
-      const full26DaysIncome = baseSalary + allowance;
-      const sampleOt5Hours = otRate * 5;
-      return {
-        dailyRate,
-        hourlyEquivalent,
-        otRate,
-        full26DaysIncome,
-        totalWithOt: full26DaysIncome + sampleOt5Hours,
-      };
-    } else {
-      const otRate = Math.round(hourlyRate * 1.5);
-      const sample120Hours = hourlyRate * 120;
-      const sampleOt10Hours = otRate * 10;
-      const totalSample = sample120Hours + sampleOt10Hours + allowance;
-      return {
-        otRate,
-        sample120Hours,
-        sampleOt10Hours,
-        totalSample,
-      };
-    }
-  }, [salaryType, baseSalary, hourlyRate, allowance]);
-
   return (
     <div className="space-y-6">
       {/* HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Chính sách &amp; Cấu hình lương
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Quản lý cơ chế chi trả đãi ngộ Full-time (Lương tháng cố định) và Part-time (Lương theo giờ), định mức phụ cấp và hệ số tăng ca OT.
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Chính sách lương
+        </h1>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setShowPresetModal(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
           >
             <Sparkles size={15} className="text-sky-600" />
-            <span>Áp dụng mẫu theo vị trí</span>
+            <span>Áp dụng theo vị trí</span>
           </button>
         </div>
       </div>
@@ -271,7 +236,6 @@ export default function Salaries() {
 
       {/* METRIC CARDS */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {/* Card 1 */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
@@ -283,15 +247,12 @@ export default function Salaries() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-slate-900">{stats.total}</span>
-            <span className="text-xs font-medium text-slate-500">nhân sự</span>
+            <span className="text-xs font-medium text-slate-500">
+              ({stats.monthlyCount} Full-time · {stats.hourlyCount} Part-time)
+            </span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            <span className="font-semibold text-sky-600">{stats.monthlyCount}</span> Full-time ·{" "}
-            <span className="font-semibold text-purple-600">{stats.hourlyCount}</span> Part-time
-          </p>
         </div>
 
-        {/* Card 2 */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
@@ -301,18 +262,14 @@ export default function Salaries() {
               <Banknote size={18} />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-slate-900">
               {stats.totalMonthlyBase.toLocaleString("vi-VN")}
             </span>
             <span className="text-xs font-medium text-slate-500">đ/tháng</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Tính trên {stats.monthlyCount} nhân sự hợp đồng tháng
-          </p>
         </div>
 
-        {/* Card 3 */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
@@ -322,36 +279,29 @@ export default function Salaries() {
               <Coins size={18} />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-slate-900">
               {stats.avgHourlyRate.toLocaleString("vi-VN")}
             </span>
             <span className="text-xs font-medium text-slate-500">đ/h</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Áp dụng cho {stats.hourlyCount} nhân viên ca Part-time
-          </p>
         </div>
 
-        {/* Card 4 */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
-              Ngân sách phụ cấp
+              Tổng phụ cấp
             </span>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
               <TrendingUp size={18} />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-emerald-700">
               {stats.totalAllowance.toLocaleString("vi-VN")}
             </span>
             <span className="text-xs font-medium text-emerald-600">đ/tháng</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Phụ cấp trách nhiệm, cơm trưa &amp; chuyên cần
-          </p>
         </div>
       </div>
 
@@ -443,11 +393,10 @@ export default function Salaries() {
                   <th className="px-5 py-3.5">Mã NV</th>
                   <th className="px-5 py-3.5">Nhân viên</th>
                   <th className="px-5 py-3.5">Vị trí / Quầy</th>
-                  <th className="px-5 py-3.5">Hình thức chi trả</th>
-                  <th className="px-5 py-3.5 text-right">Lương cơ bản / Mức giờ</th>
-                  <th className="px-5 py-3.5 text-right">Phụ cấp cố định</th>
-                  <th className="px-5 py-3.5 text-center">Hệ số tăng ca (OT)</th>
-                  <th className="px-5 py-3.5 text-right">Lương chuẩn ước tính</th>
+                  <th className="px-5 py-3.5">Hình thức</th>
+                  <th className="px-5 py-3.5 text-right">Mức lương</th>
+                  <th className="px-5 py-3.5 text-right">Phụ cấp</th>
+                  <th className="px-5 py-3.5 text-center">Tăng ca (OT)</th>
                   <th className="px-5 py-3.5 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -457,7 +406,6 @@ export default function Salaries() {
                   const base = emp.base_salary || 0;
                   const rate = emp.hourly_rate || 30000;
                   const allow = emp.allowance || 0;
-                  const estimatedMonthly = isMonthly ? base + allow : rate * 120 + allow;
 
                   return (
                     <tr key={emp.id} className="transition hover:bg-slate-50/80">
@@ -498,35 +446,21 @@ export default function Salaries() {
                       {/* Salary Type Badge */}
                       <td className="px-5 py-4">
                         {isMonthly ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-                            Full-time (Lương tháng)
+                          <span className="inline-flex rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                            Full-time
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                            Part-time (Lương giờ)
+                          <span className="inline-flex rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700">
+                            Part-time
                           </span>
                         )}
                       </td>
 
                       {/* Base / Hourly Rate */}
-                      <td className="px-5 py-4 text-right">
-                        {isMonthly ? (
-                          <div>
-                            <span className="text-sm font-bold text-slate-900">
-                              {base.toLocaleString("vi-VN")} đ
-                            </span>
-                            <span className="block text-[11px] text-slate-400">/ tháng (26 công)</span>
-                          </div>
-                        ) : (
-                          <div>
-                            <span className="text-sm font-bold text-slate-900">
-                              {rate.toLocaleString("vi-VN")} đ
-                            </span>
-                            <span className="block text-[11px] text-slate-400">/ giờ công</span>
-                          </div>
-                        )}
+                      <td className="px-5 py-4 text-right font-bold text-slate-900">
+                        {isMonthly
+                          ? `${base.toLocaleString("vi-VN")} đ/tháng`
+                          : `${rate.toLocaleString("vi-VN")} đ/h`}
                       </td>
 
                       {/* Allowance */}
@@ -536,24 +470,14 @@ export default function Salaries() {
                             +{allow.toLocaleString("vi-VN")} đ
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400">0 đ</span>
+                          <span className="text-xs text-slate-300">—</span>
                         )}
                       </td>
 
                       {/* OT Multiplier Rule */}
                       <td className="px-5 py-4 text-center">
                         <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 border border-amber-200">
-                          1.5x ngoài ca
-                        </span>
-                      </td>
-
-                      {/* Estimated Standard Monthly */}
-                      <td className="px-5 py-4 text-right">
-                        <span className="text-sm font-semibold text-slate-800">
-                          {estimatedMonthly.toLocaleString("vi-VN")} đ
-                        </span>
-                        <span className="block text-[10px] text-slate-400">
-                          {isMonthly ? "Công chuẩn 26 ngày" : "Ước tính ~120h/tháng"}
+                          1.5x
                         </span>
                       </td>
 
@@ -583,9 +507,9 @@ export default function Salaries() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Thiết lập chính sách đãi ngộ</h3>
+                <h3 className="text-lg font-bold text-slate-900">Thiết lập lương</h3>
                 <p className="text-xs text-slate-500">
-                  Nhân sự: <span className="font-semibold text-slate-800">{editingEmployee.full_name}</span> ({editingEmployee.employee_code}) · {editingEmployee.department || "Nhân viên"}
+                  {editingEmployee.full_name} ({editingEmployee.employee_code})
                 </p>
               </div>
               <button
@@ -608,7 +532,7 @@ export default function Salaries() {
               {/* Type Toggle */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Hình thức chi trả <span className="text-red-500">*</span>
+                  Hình thức <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
                   <button
@@ -651,12 +575,11 @@ export default function Salaries() {
                     step="500000"
                     value={baseSalary || ""}
                     onChange={(e) => setBaseSalary(Math.max(0, Number(e.target.value) || 0))}
-                    placeholder="Nhập mức lương tháng, ví dụ: 12000000"
+                    placeholder="12000000"
                     required
                     disabled={saving}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white"
                   />
-                  {/* Quick buttons */}
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {[8500000, 9500000, 10500000, 12000000, 15000000].map((val) => (
                       <button
@@ -673,16 +596,11 @@ export default function Salaries() {
                       </button>
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[11px] text-slate-500">
-                    Quy chuẩn: 26 ngày công chuẩn. 1 ngày ={" "}
-                    <strong>{simulated.dailyRate ? simulated.dailyRate.toLocaleString("vi-VN") : 0} đ</strong>. Tăng ca OT (x1.5) ={" "}
-                    <strong>{simulated.otRate ? simulated.otRate.toLocaleString("vi-VN") : 0} đ/h</strong>.
-                  </p>
                 </div>
               ) : (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Đơn giá theo giờ (VNĐ/h) <span className="text-red-500">*</span>
+                    Đơn giá giờ (VNĐ/h) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -690,12 +608,11 @@ export default function Salaries() {
                     step="1000"
                     value={hourlyRate || ""}
                     onChange={(e) => setHourlyRate(Math.max(0, Number(e.target.value) || 0))}
-                    placeholder="Nhập đơn giá, ví dụ: 30000"
+                    placeholder="30000"
                     required
                     disabled={saving}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-purple-500 focus:bg-white"
                   />
-                  {/* Quick buttons */}
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {[25000, 28000, 30000, 32000, 35000, 42000, 45000].map((val) => (
                       <button
@@ -712,17 +629,13 @@ export default function Salaries() {
                       </button>
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[11px] text-slate-500">
-                    Giờ làm việc trong ca: 1.0x. Giờ tăng ca ngoài ca (OT): 1.5x ={" "}
-                    <strong>{simulated.otRate ? simulated.otRate.toLocaleString("vi-VN") : 0} đ/h</strong>.
-                  </p>
                 </div>
               )}
 
               {/* Allowance */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Phụ cấp cố định hàng tháng (VNĐ)
+                  Phụ cấp (VNĐ/tháng)
                 </label>
                 <input
                   type="number"
@@ -730,7 +643,7 @@ export default function Salaries() {
                   step="100000"
                   value={allowance || ""}
                   onChange={(e) => setAllowance(Math.max(0, Number(e.target.value) || 0))}
-                  placeholder="Ví dụ: 500000 (Trách nhiệm, cơm trưa, chuyên cần)"
+                  placeholder="0"
                   disabled={saving}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                 />
@@ -746,27 +659,9 @@ export default function Salaries() {
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                       }`}
                     >
-                      {val === 0 ? "0 đ (Không có)" : `+${val.toLocaleString("vi-VN")} đ`}
+                      {val === 0 ? "0 đ" : `+${val.toLocaleString("vi-VN")} đ`}
                     </button>
                   ))}
-                </div>
-              </div>
-
-              {/* Simulation Box */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-xs space-y-1.5">
-                <div className="flex items-center justify-between font-medium text-slate-600">
-                  <span>Mô phỏng thu nhập tháng:</span>
-                  <span className="font-semibold text-slate-800">
-                    {salaryType === "MONTHLY" ? "Làm đủ 26 công" : "Làm ~120h tiêu chuẩn"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-200">
-                  <span>Dự kiến thực nhận:</span>
-                  <span className="text-emerald-700 font-extrabold text-base">
-                    {salaryType === "MONTHLY"
-                      ? `${(simulated.full26DaysIncome || 0).toLocaleString("vi-VN")} đ`
-                      : `${(simulated.totalSample || 0).toLocaleString("vi-VN")} đ`}
-                  </span>
                 </div>
               </div>
 
@@ -785,7 +680,7 @@ export default function Salaries() {
                   disabled={saving}
                   className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-50"
                 >
-                  {saving ? "Đang lưu..." : "Lưu chính sách đãi ngộ"}
+                  {saving ? "Đang lưu..." : "Lưu thay đổi"}
                 </button>
               </div>
             </form>
@@ -798,10 +693,7 @@ export default function Salaries() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Áp dụng chính sách theo vị trí</h3>
-                <p className="text-xs text-slate-500">Cập nhật định mức lương đồng loạt cho toàn bộ nhân sự cùng vị trí</p>
-              </div>
+              <h3 className="text-base font-bold text-slate-900">Áp dụng theo vị trí</h3>
               <button
                 type="button"
                 onClick={() => setShowPresetModal(false)}
