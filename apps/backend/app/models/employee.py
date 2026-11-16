@@ -1,9 +1,15 @@
 from datetime import datetime
+from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+
+class SalaryType(str, Enum):
+    HOURLY = "HOURLY"
+    MONTHLY = "MONTHLY"
 
 
 class Employee(Base):
@@ -44,6 +50,34 @@ class Employee(Base):
         ForeignKey("store_profiles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+
+    salary_type: Mapped[SalaryType] = mapped_column(
+        SQLEnum(SalaryType, name="salary_type"),
+        default=SalaryType.HOURLY,
+        server_default="HOURLY",
+        nullable=False,
+    )
+
+    base_salary: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        server_default="0",
+        nullable=False,
+    )
+
+    hourly_rate: Mapped[float] = mapped_column(
+        Float,
+        default=30000.0,
+        server_default="30000",
+        nullable=False,
+    )
+
+    allowance: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        server_default="0",
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(

@@ -239,6 +239,10 @@ def create_employee(
         existing_by_user.full_name = payload.full_name
         existing_by_user.email = payload.email
         existing_by_user.department = payload.department
+        existing_by_user.salary_type = payload.salary_type
+        existing_by_user.base_salary = payload.base_salary
+        existing_by_user.hourly_rate = payload.hourly_rate
+        existing_by_user.allowance = payload.allowance
         existing_by_user.store_id = store_id
         db.commit()
         db.refresh(existing_by_user)
@@ -266,6 +270,10 @@ def create_employee(
         full_name=payload.full_name,
         email=payload.email,
         department=payload.department,
+        salary_type=payload.salary_type,
+        base_salary=payload.base_salary,
+        hourly_rate=payload.hourly_rate,
+        allowance=payload.allowance,
         store_id=store_id,
     )
 

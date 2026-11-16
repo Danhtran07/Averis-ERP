@@ -117,12 +117,18 @@ class MonthlyTimesheetRow(BaseModel):
     total_overtime_minutes: int = 0
     avg_face_similarity: float | None = None
     avg_liveness_score: float | None = None
+    salary_type: str = "HOURLY"
+    base_salary: float = 0.0
+    hourly_rate: float = 30000.0
+    allowance: float = 0.0
+    calculated_payroll: float = 0.0
 
 
 class MonthlyTimesheetReportResponse(BaseModel):
     year: int
     month: int
     total_employees: int
+    total_payroll: float = 0.0
     rows: list[MonthlyTimesheetRow]
 
 

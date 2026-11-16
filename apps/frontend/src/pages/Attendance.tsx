@@ -114,6 +114,20 @@ function downloadCsvFile(filename: string, headers: string[], rows: (string | nu
   URL.revokeObjectURL(url);
 }
 
+function downloadExcelHtmlFile(filename: string, htmlContent: string) {
+  const blob = new Blob(["\uFEFF" + htmlContent], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function getDayStatusLabel(day: AttendanceCalendarDay) {
   if (!day.has_record) {
     return day.is_weekend ? "Nghỉ ca" : "Chưa có";
@@ -203,6 +217,16 @@ export default function Attendance() {
   const [reportLoading, setReportLoading] = useState(false);
   const [hourlyRateVnd, setHourlyRateVnd] = useState<number>(35000);
   const [hideEmptyRows, setHideEmptyRows] = useState<boolean>(true);
+  const [salaryTypeFilter, setSalaryTypeFilter] = useState<"ALL" | "HOURLY" | "MONTHLY">("ALL");
+  const [storeName, setStoreName] = useState("Averis");
+
+  useEffect(() => {
+    getStoreProfile()
+      .then((p) => {
+        if (p?.store_name) setStoreName(p.store_name);
+      })
+      .catch(() => null);
+  }, []);
 
   // Requests state (Admin & Employee)
   const [requests, setRequests] = useState<AttendanceRequestItem[]>([]);
@@ -475,25 +499,35 @@ export default function Attendance() {
     if (!calendar) return;
     const empLabel = selectedEmployee
       ? `${selectedEmployee.employee_code}_${selectedEmployee.full_name}`
-      : "my_attendance";
+      : "bang_cong_ca_nhan";
     const headers = [
-      "Date",
-      "Status",
-      "Check-in",
-      "Check-out",
-      "Working Minutes",
-      "Late Minutes",
-      "Early Leave Minutes",
-      "Overtime Minutes",
-      "AI Match %",
-      "Liveness %",
-      "Verification",
+      "Ngày",
+      "Trạng thái",
+      "Giờ vào",
+      "Giờ ra",
+      "Thời gian làm (h)",
+      "Tổng phút làm",
+      "Phút đi trễ",
+      "Phút về sớm",
+      "Tăng ca OT (phút)",
+      "Độ khớp AI (%)",
+      "Điểm Liveness (%)",
+      "Xác thực",
     ];
     const rows = calendar.days.map((d) => [
       d.date,
-      d.has_record ? d.status : d.is_weekend ? "WEEKEND" : "NO_RECORD",
+      d.has_record
+        ? d.status === "PRESENT"
+          ? "Đúng giờ"
+          : d.status === "LATE"
+            ? "Đi trễ"
+            : "Vắng mặt"
+        : d.is_weekend
+          ? "Nghỉ ca"
+          : "Chưa có",
       d.check_in ? formatClock(d.check_in) : "",
       d.check_out ? formatClock(d.check_out) : "",
+      d.working_minutes ? (d.working_minutes / 60).toFixed(1) : 0,
       d.working_minutes || 0,
       d.late_minutes || 0,
       d.early_leave_minutes || 0,
@@ -503,41 +537,494 @@ export default function Attendance() {
       d.verification_status || "",
     ]);
     downloadCsvFile(
-      `timesheet_${empLabel}_${year}_${String(month).padStart(2, "0")}.csv`,
+      `averis_bang_cong_${empLabel}_${year}_${String(month).padStart(2, "0")}.csv`,
       headers,
       rows
     );
   }
 
-  function calculateFnbPayrollVnd(workingMins: number, overtimeMins: number) {
-    const regularHours = Math.max(0, workingMins - overtimeMins) / 60;
-    const otHours = Math.max(0, overtimeMins) / 60;
-    return Math.round((regularHours + otHours * 1.5) * hourlyRateVnd);
+  function handleExportCalendarExcel() {
+    if (!calendar) return;
+    const empName = selectedEmployee ? selectedEmployee.full_name : "Nhân sự";
+    const empCode = selectedEmployee ? selectedEmployee.employee_code : "";
+    const empLabel = selectedEmployee
+      ? `${selectedEmployee.employee_code}_${selectedEmployee.full_name}`
+      : "bang_cong_ca_nhan";
+
+    const presentDays = calendar.days.filter((d) => d.has_record && d.status === "PRESENT").length;
+    const lateDays = calendar.days.filter((d) => d.has_record && d.status === "LATE").length;
+    const absentDays = calendar.days.filter((d) => d.has_record && d.status === "ABSENT").length;
+    const totalWorkingMins = calendar.days.reduce((acc, d) => acc + (d.working_minutes || 0), 0);
+    const totalOtMins = calendar.days.reduce((acc, d) => acc + (d.overtime_minutes || 0), 0);
+
+    const html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Bảng Công - ${empCode || "NV"}</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #1e293b; padding: 20px; }
+  table { border-collapse: collapse; width: 100%; mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
+  .title-banner { background-color: #0369a1; color: #ffffff; font-size: 15pt; font-weight: bold; text-align: center; vertical-align: middle; height: 50px; }
+  .meta-banner { background-color: #f0f9ff; color: #0369a1; font-size: 10.5pt; font-weight: 600; text-align: center; vertical-align: middle; height: 32px; border-bottom: 2px solid #bae6fd; }
+  th { background-color: #0f172a; color: #ffffff; font-size: 10.5pt; font-weight: bold; text-align: center; vertical-align: middle; height: 44px; padding: 10px 12px; border: 1px solid #334155; white-space: nowrap; }
+  td { vertical-align: middle; height: 36px; padding: 8px 12px; border: 1px solid #cbd5e1; font-size: 10.5pt; white-space: nowrap; }
+  tr.even { background-color: #ffffff; }
+  tr.odd { background-color: #f8fafc; }
+  .cell-present { background-color: #ecfdf5; color: #047857; font-weight: 600; text-align: center; }
+  .cell-late { background-color: #fefce8; color: #b45309; font-weight: 600; text-align: center; }
+  .cell-absent { background-color: #fef2f2; color: #b91c1c; font-weight: 600; text-align: center; }
+  .cell-weekend { background-color: #f1f5f9; color: #64748b; font-weight: 500; text-align: center; }
+  .cell-ot { background-color: #fff7ed; color: #c2410c; font-weight: 700; text-align: right; }
+  tr.total-row { background-color: #e2e8f0; font-weight: bold; height: 40px; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; }
+</style>
+</head>
+<body>
+<table>
+  <tr>
+    <td colspan="11" class="title-banner">
+      BẢNG CHẤM CÔNG CHI TIẾT - ${empName.toUpperCase()} ${empCode ? `(${empCode})` : ""}
+    </td>
+  </tr>
+  <tr>
+    <td colspan="11" class="meta-banner">
+      Kỳ chấm công: <strong>Tháng ${month}/${year}</strong> &nbsp;|&nbsp; 
+      Đúng giờ: <strong>${presentDays} ngày</strong> &nbsp;|&nbsp; 
+      Đi trễ: <strong>${lateDays} ngày</strong> &nbsp;|&nbsp; 
+      Vắng: <strong>${absentDays} ngày</strong> &nbsp;|&nbsp; 
+      Tổng giờ làm: <strong>${(totalWorkingMins / 60).toFixed(1)} h</strong> (Tăng ca OT: ${(totalOtMins / 60).toFixed(1)} h)
+    </td>
+  </tr>
+  <tr style="height:14px;"><td colspan="11" style="border:none;"></td></tr>
+  <thead>
+    <tr>
+      <th style="width:110px;">Ngày</th>
+      <th style="width:130px;">Trạng thái</th>
+      <th style="width:100px;">Giờ vào</th>
+      <th style="width:100px;">Giờ ra</th>
+      <th style="width:130px;">Thời gian làm</th>
+      <th style="width:110px;">Phút trễ</th>
+      <th style="width:110px;">Phút về sớm</th>
+      <th style="width:130px; background-color:#ea580c;">Tăng ca OT (phút)</th>
+      <th style="width:110px;">Độ khớp AI (%)</th>
+      <th style="width:110px;">Liveness (%)</th>
+      <th style="width:130px;">Xác thực</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${calendar.days
+      .map((d, idx) => {
+        const isEven = idx % 2 === 0;
+        const statusLabel = d.has_record
+          ? d.status === "PRESENT"
+            ? "Đúng giờ"
+            : d.status === "LATE"
+              ? "Đi trễ"
+              : "Vắng mặt"
+          : d.is_weekend
+            ? "Nghỉ ca"
+            : "Chưa có";
+        const statusClass = d.has_record
+          ? d.status === "PRESENT"
+            ? "cell-present"
+            : d.status === "LATE"
+              ? "cell-late"
+              : "cell-absent"
+          : "cell-weekend";
+
+        return `
+    <tr class="${isEven ? "even" : "odd"}">
+      <td style="text-align:center; font-weight:600;">${d.date}</td>
+      <td class="${statusClass}">${statusLabel}</td>
+      <td style="text-align:center;">${d.check_in ? formatClock(d.check_in) : "—"}</td>
+      <td style="text-align:center;">${d.check_out ? formatClock(d.check_out) : "—"}</td>
+      <td style="text-align:right; font-weight:600;">${d.working_minutes ? `${(d.working_minutes / 60).toFixed(1)} h` : "—"}</td>
+      <td style="text-align:right;">${d.late_minutes ? `${d.late_minutes} p` : "—"}</td>
+      <td style="text-align:right;">${d.early_leave_minutes ? `${d.early_leave_minutes} p` : "—"}</td>
+      <td class="cell-ot">${d.overtime_minutes ? `${d.overtime_minutes} p` : "—"}</td>
+      <td style="text-align:center;">${d.face_similarity != null ? `${(d.face_similarity * 100).toFixed(1)}%` : "—"}</td>
+      <td style="text-align:center;">${d.liveness_score != null ? `${(d.liveness_score * 100).toFixed(1)}%` : "—"}</td>
+      <td style="text-align:center;">${d.verification_status || "—"}</td>
+    </tr>`;
+      })
+      .join("")}
+  </tbody>
+  <tfoot>
+    <tr class="total-row">
+      <td colspan="4" style="text-align:center; font-weight:bold;">TỔNG CỘNG THÁNG ${month}/${year}</td>
+      <td style="text-align:right; font-weight:bold; color:#0369a1;">${(totalWorkingMins / 60).toFixed(1)} h</td>
+      <td colspan="2" style="text-align:center;">—</td>
+      <td style="text-align:right; font-weight:bold; color:#9a3412; background-color:#ffedd5;">${totalOtMins} p</td>
+      <td colspan="3" style="text-align:center;">—</td>
+    </tr>
+  </tfoot>
+</table>
+</body>
+</html>`;
+
+    downloadExcelHtmlFile(
+      `averis_bang_cong_${empLabel}_${year}_${String(month).padStart(2, "0")}.xls`,
+      html
+    );
+  }
+
+  function calculateRowPayroll(r: MonthlyTimesheetRow) {
+    if (r.calculated_payroll !== undefined && r.calculated_payroll !== null) {
+      return r.calculated_payroll;
+    }
+    const actualDays = (r.present_days || 0) + (r.late_days || 0);
+    const otHours = (r.total_overtime_minutes || 0) / 60;
+    const isMonthly = (r.salary_type || "").toUpperCase() === "MONTHLY";
+    if (isMonthly) {
+      const base = r.base_salary || 0;
+      const dailyRate = base / 26;
+      const otRate = (base / (26 * 8)) * 1.5;
+      const allow = actualDays > 0 ? (r.allowance || 0) : 0;
+      return Math.round(dailyRate * actualDays + otHours * otRate + allow);
+    }
+    const hrRate = r.hourly_rate || hourlyRateVnd;
+    const regHours = Math.max(0, (r.total_working_minutes || 0) - (r.total_overtime_minutes || 0)) / 60;
+    const allow = actualDays > 0 ? (r.allowance || 0) : 0;
+    return Math.round((regHours + otHours * 1.5) * hrRate + allow);
+  }
+
+  function calculateEmployeeCalendarPayroll() {
+    if (!calendar || !calendarSummary) return 0;
+    const actualDays = calendarSummary.presentDays + calendarSummary.lateDays;
+    const otHours = calendarSummary.overtimeMinutes / 60;
+    const isMonthly = (selectedEmployee?.salary_type || "").toUpperCase() === "MONTHLY";
+    if (isMonthly) {
+      const base = selectedEmployee?.base_salary || 0;
+      const dailyRate = base / 26;
+      const otRate = (base / (26 * 8)) * 1.5;
+      const allow = actualDays > 0 ? (selectedEmployee?.allowance || 0) : 0;
+      return Math.round(dailyRate * actualDays + otHours * otRate + allow);
+    }
+    const hrRate = selectedEmployee?.hourly_rate || hourlyRateVnd;
+    const regHours = Math.max(0, calendarSummary.workingMinutes - calendarSummary.overtimeMinutes) / 60;
+    const allow = actualDays > 0 ? (selectedEmployee?.allowance || 0) : 0;
+    return Math.round((regHours + otHours * 1.5) * hrRate + allow);
+  }
+
+  function handleExportCompanyReportExcel() {
+    if (!report) return;
+    const rowsToExport = report.rows.filter((r) => {
+      if (salaryTypeFilter !== "ALL") {
+        const type = (r.salary_type || "HOURLY").toUpperCase();
+        if (type !== salaryTypeFilter) return false;
+      }
+      return true;
+    });
+
+    const totalEmployees = rowsToExport.length;
+    const totalWorkingMins = rowsToExport.reduce((acc, r) => acc + (r.total_working_minutes || 0), 0);
+    const totalLateMins = rowsToExport.reduce((acc, r) => acc + (r.total_late_minutes || 0), 0);
+    const totalEarlyMins = rowsToExport.reduce((acc, r) => acc + (r.total_early_leave_minutes || 0), 0);
+    const totalOtMins = rowsToExport.reduce((acc, r) => acc + (r.total_overtime_minutes || 0), 0);
+    const totalPayroll = rowsToExport.reduce((acc, r) => acc + calculateRowPayroll(r), 0);
+    const totalPresentDays = rowsToExport.reduce((acc, r) => acc + (r.present_days || 0), 0);
+    const totalLateDays = rowsToExport.reduce((acc, r) => acc + (r.late_days || 0), 0);
+    const totalAbsentDays = rowsToExport.reduce((acc, r) => acc + (r.absent_days || 0), 0);
+
+    const printDate = new Date().toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Bảng Lương Tháng ${String(month).padStart(2, "0")}-${year}</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    color: #1e293b;
+    margin: 0;
+    padding: 20px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    mso-displayed-decimal-separator: ".";
+    mso-displayed-thousand-separator: ",";
+  }
+  .title-banner {
+    background-color: #0369a1;
+    color: #ffffff;
+    font-size: 16pt;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    height: 52px;
+    letter-spacing: 0.5px;
+  }
+  .meta-banner {
+    background-color: #f0f9ff;
+    color: #0369a1;
+    font-size: 10.5pt;
+    font-weight: 600;
+    text-align: center;
+    vertical-align: middle;
+    height: 32px;
+    border-bottom: 2px solid #bae6fd;
+  }
+  .spacer-row {
+    height: 16px;
+  }
+  th {
+    background-color: #0f172a;
+    color: #ffffff;
+    font-size: 10.5pt;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    height: 48px;
+    padding: 10px 14px;
+    border: 1px solid #334155;
+    white-space: nowrap;
+  }
+  th.col-id { width: 120px; background-color: #1e293b; }
+  th.col-name { width: 220px; background-color: #1e293b; }
+  th.col-dept { width: 180px; background-color: #1e293b; }
+  th.col-type { width: 140px; background-color: #1e293b; }
+  th.col-rate { width: 170px; background-color: #0284c7; }
+  th.col-allowance { width: 130px; background-color: #0284c7; }
+  th.col-present { width: 110px; background-color: #059669; border-color: #047857; }
+  th.col-late { width: 100px; background-color: #d97706; border-color: #b45309; }
+  th.col-absent { width: 100px; background-color: #dc2626; border-color: #b91c1c; }
+  th.col-hours { width: 130px; background-color: #0284c7; border-color: #0369a1; }
+  th.col-work-mins { width: 120px; background-color: #0284c7; border-color: #0369a1; }
+  th.col-late-mins { width: 100px; background-color: #d97706; border-color: #b45309; }
+  th.col-early-mins { width: 110px; background-color: #d97706; border-color: #b45309; }
+  th.col-ot { width: 140px; background-color: #ea580c; border-color: #c2410c; }
+  th.col-payroll { width: 190px; background-color: #15803d; border-color: #166534; }
+  th.col-ai { width: 120px; background-color: #475569; }
+  th.col-live { width: 120px; background-color: #475569; }
+
+  tr.data-row {
+    height: 38px;
+  }
+  tr.even { background-color: #ffffff; }
+  tr.odd { background-color: #f8fafc; }
+
+  td {
+    vertical-align: middle;
+    height: 38px;
+    padding: 8px 14px;
+    border: 1px solid #cbd5e1;
+    font-size: 10.5pt;
+    white-space: nowrap;
+  }
+  .text-left { text-align: left; }
+  .text-center { text-align: center; }
+  .text-right { text-align: right; }
+  .font-bold { font-weight: bold; }
+  .font-mono { font-family: 'Consolas', 'Courier New', monospace; font-size: 10pt; font-weight: 600; color: #1e293b; }
+
+  /* Đánh dấu màu sắc các cột theo trạng thái */
+  td.cell-present { background-color: #ecfdf5; color: #047857; font-weight: 600; text-align: center; }
+  td.cell-late { background-color: #fefce8; color: #b45309; font-weight: 600; text-align: center; }
+  td.cell-absent { background-color: #fef2f2; color: #b91c1c; font-weight: 600; text-align: center; }
+  td.cell-ot { background-color: #fff7ed; color: #c2410c; font-weight: 700; text-align: right; }
+  td.cell-payroll { background-color: #dcfce7; color: #14532d; font-weight: bold; font-size: 11pt; text-align: right; }
+  td.cell-monthly { background-color: #f0f9ff; color: #0369a1; font-weight: 600; text-align: center; }
+  td.cell-hourly { background-color: #faf5ff; color: #7e22ce; font-weight: 600; text-align: center; }
+
+  tr.total-row {
+    background-color: #e2e8f0;
+    font-weight: bold;
+    height: 42px;
+    border-top: 2px solid #0f172a;
+    border-bottom: 2px solid #0f172a;
+  }
+  td.total-payroll {
+    background-color: #bbf7d0;
+    color: #14532d;
+    font-weight: 800;
+    font-size: 11.5pt;
+    text-align: right;
+  }
+
+  .footer-notes {
+    font-size: 9.5pt;
+    color: #64748b;
+    font-style: italic;
+    padding: 6px 0;
+  }
+</style>
+</head>
+<body>
+<table>
+  <tr>
+    <td colspan="17" class="title-banner">
+      BẢNG TỔNG HỢP CÔNG &amp; LƯƠNG NHÂN VIÊN
+    </td>
+  </tr>
+  <tr>
+    <td colspan="17" class="meta-banner">
+      Cửa hàng: <strong>${storeName || "Averis"}</strong> &nbsp;|&nbsp; 
+      Kỳ lương: <strong>Tháng ${month}/${year}</strong> &nbsp;|&nbsp; 
+      Hình thức: <strong>${salaryTypeFilter === "ALL" ? "Tất cả hợp đồng" : salaryTypeFilter === "MONTHLY" ? "Full-time (Lương tháng)" : "Part-time (Lương giờ)"}</strong> &nbsp;|&nbsp; 
+      Xuất lúc: <strong>${printDate}</strong>
+    </td>
+  </tr>
+  <tr class="spacer-row"><td colspan="17" style="border:none; height:14px;"></td></tr>
+  <thead>
+    <tr>
+      <th class="col-id">Mã nhân viên</th>
+      <th class="col-name">Họ và tên</th>
+      <th class="col-dept">Vị trí / Quầy</th>
+      <th class="col-type">Hình thức</th>
+      <th class="col-rate">Lương cơ bản / Mức giờ</th>
+      <th class="col-allowance">Phụ cấp (VNĐ)</th>
+      <th class="col-present">Ngày đúng giờ</th>
+      <th class="col-late">Ngày đi trễ</th>
+      <th class="col-absent">Ngày vắng</th>
+      <th class="col-hours">Tổng giờ làm</th>
+      <th class="col-work-mins">Tổng phút làm</th>
+      <th class="col-late-mins">Phút trễ</th>
+      <th class="col-early-mins">Phút về sớm</th>
+      <th class="col-ot">Tăng ca OT (phút)</th>
+      <th class="col-payroll">Lương thực nhận (VNĐ)</th>
+      <th class="col-ai">Độ khớp AI (%)</th>
+      <th class="col-live">Điểm Liveness (%)</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rowsToExport
+      .map((r, idx) => {
+        const payroll = calculateRowPayroll(r);
+        const isMonthly = (r.salary_type || "").toUpperCase() === "MONTHLY";
+        const isEven = idx % 2 === 0;
+        return `
+    <tr class="data-row ${isEven ? "even" : "odd"}">
+      <td class="font-mono text-center">${r.employee_code}</td>
+      <td class="font-bold text-left">${r.full_name}</td>
+      <td class="text-left">${r.department || "—"}</td>
+      <td class="${isMonthly ? "cell-monthly" : "cell-hourly"}">${isMonthly ? "Full-time (Tháng)" : "Part-time (Giờ)"}</td>
+      <td class="text-right font-bold">${isMonthly ? `${(r.base_salary || 0).toLocaleString("vi-VN")} đ/tháng` : `${(r.hourly_rate || 30000).toLocaleString("vi-VN")} đ/h`}</td>
+      <td class="text-right">${r.allowance ? `${(r.allowance || 0).toLocaleString("vi-VN")} đ` : "—"}</td>
+      <td class="cell-present">${r.present_days > 0 ? r.present_days : "—"}</td>
+      <td class="cell-late">${r.late_days > 0 ? r.late_days : "—"}</td>
+      <td class="cell-absent">${r.absent_days > 0 ? r.absent_days : "—"}</td>
+      <td class="text-right font-bold">${(r.total_working_minutes / 60).toFixed(1)} h</td>
+      <td class="text-right">${r.total_working_minutes.toLocaleString("vi-VN")}</td>
+      <td class="text-right">${r.total_late_minutes > 0 ? `${r.total_late_minutes} p` : "—"}</td>
+      <td class="text-right">${r.total_early_leave_minutes > 0 ? `${r.total_early_leave_minutes} p` : "—"}</td>
+      <td class="cell-ot">${r.total_overtime_minutes > 0 ? `${r.total_overtime_minutes} p` : "—"}</td>
+      <td class="cell-payroll">${payroll.toLocaleString("vi-VN")} đ</td>
+      <td class="text-center">${r.avg_face_similarity != null ? `${(r.avg_face_similarity * 100).toFixed(1)}%` : "—"}</td>
+      <td class="text-center">${r.avg_liveness_score != null ? `${(r.avg_liveness_score * 100).toFixed(1)}%` : "—"}</td>
+    </tr>`;
+      })
+      .join("")}
+  </tbody>
+  <tfoot>
+    <tr class="total-row">
+      <td colspan="6" class="text-center font-bold" style="background-color:#e2e8f0; font-size:11pt;">
+        TỔNG CỘNG (${totalEmployees} nhân sự)
+      </td>
+      <td class="text-center font-bold" style="background-color:#d1fae5; color:#065f46;">${totalPresentDays}</td>
+      <td class="text-center font-bold" style="background-color:#fef3c7; color:#92400e;">${totalLateDays}</td>
+      <td class="text-center font-bold" style="background-color:#fee2e2; color:#991b1b;">${totalAbsentDays}</td>
+      <td class="text-right font-bold" style="background-color:#bae6fd; color:#0369a1;">${(totalWorkingMins / 60).toFixed(1)} h</td>
+      <td class="text-right font-bold">${totalWorkingMins.toLocaleString("vi-VN")}</td>
+      <td class="text-right font-bold">${totalLateMins.toLocaleString("vi-VN")} p</td>
+      <td class="text-right font-bold">${totalEarlyMins.toLocaleString("vi-VN")} p</td>
+      <td class="text-right font-bold" style="background-color:#ffedd5; color:#9a3412;">${totalOtMins.toLocaleString("vi-VN")} p</td>
+      <td class="total-payroll">${totalPayroll.toLocaleString("vi-VN")} đ</td>
+      <td class="text-center font-bold" colspan="2">—</td>
+    </tr>
+    <tr class="spacer-row"><td colspan="17" style="border:none; height:12px;"></td></tr>
+    <tr>
+      <td colspan="17" class="footer-notes" style="border:none;">
+        * Quy chế tính lương: Full-time: (Lương cơ bản / 26) × Ngày công + (Giờ OT × Lương giờ chuẩn × 1.5) + Phụ cấp. Part-time: (Giờ chuẩn + Giờ OT × 1.5) × Đơn giá giờ + Phụ cấp.
+      </td>
+    </tr>
+    <tr>
+      <td colspan="17" class="footer-notes" style="border:none;">
+        * Báo cáo được trích xuất tự động từ Hệ thống Quản trị &amp; Chấm công Sinh trắc học Averis ERP.
+      </td>
+    </tr>
+  </tfoot>
+</table>
+</body>
+</html>`;
+
+    downloadExcelHtmlFile(
+      `averis_bang_luong_thang_${String(month).padStart(2, "0")}_${year}.xls`,
+      html
+    );
   }
 
   function handleExportCompanyReportCsv() {
     if (!report) return;
+    const rowsToExport = report.rows.filter((r) => {
+      if (salaryTypeFilter !== "ALL") {
+        const type = (r.salary_type || "HOURLY").toUpperCase();
+        if (type !== salaryTypeFilter) return false;
+      }
+      return true;
+    });
+
     const headers = [
-      "Employee Code",
-      "Full Name",
-      "Department",
-      "Present Days",
-      "Late Days",
-      "Absent Days",
-      "Working Hours",
-      "Total Working Minutes",
-      "Total Late Minutes",
-      "Early Leave Minutes",
-      "Overtime Minutes",
-      "Hourly Rate (VND)",
-      "Est. Payroll (VND)",
-      "Avg Face Similarity %",
-      "Avg Liveness %",
+      "Mã nhân viên",
+      "Họ và tên",
+      "Vị trí / Quầy",
+      "Hình thức",
+      "Lương cơ bản / Đơn giá",
+      "Phụ cấp (VNĐ)",
+      "Ngày đúng giờ",
+      "Ngày đi trễ",
+      "Ngày vắng",
+      "Tổng giờ làm (h)",
+      "Tổng phút làm",
+      "Phút trễ",
+      "Phút về sớm",
+      "Tăng ca OT (phút)",
+      "Lương thực nhận (VNĐ)",
+      "Độ khớp AI (%)",
+      "Điểm Liveness (%)",
     ];
-    const rows = report.rows.map((r) => [
+    const rows = rowsToExport.map((r) => [
       r.employee_code,
       r.full_name,
-      r.department || "Unassigned",
+      r.department || "—",
+      r.salary_type === "MONTHLY" ? "Full-time (Tháng)" : "Part-time (Giờ)",
+      r.salary_type === "MONTHLY"
+        ? `${r.base_salary || 0} đ/tháng`
+        : `${r.hourly_rate || 30000} đ/h`,
+      r.allowance || 0,
       r.present_days,
       r.late_days,
       r.absent_days,
@@ -546,13 +1033,12 @@ export default function Attendance() {
       r.total_late_minutes,
       r.total_early_leave_minutes,
       r.total_overtime_minutes,
-      hourlyRateVnd,
-      calculateFnbPayrollVnd(r.total_working_minutes, r.total_overtime_minutes),
+      calculateRowPayroll(r),
       r.avg_face_similarity != null ? (r.avg_face_similarity * 100).toFixed(1) : "",
       r.avg_liveness_score != null ? (r.avg_liveness_score * 100).toFixed(1) : "",
     ]);
     downloadCsvFile(
-      `averis_payroll_${year}_${String(month).padStart(2, "0")}.csv`,
+      `averis_bang_luong_${year}_${String(month).padStart(2, "0")}.csv`,
       headers,
       rows
     );
@@ -797,9 +1283,19 @@ export default function Attendance() {
                 ))}
               </select>
 
+              <select
+                value={salaryTypeFilter}
+                onChange={(e) => setSalaryTypeFilter(e.target.value as "ALL" | "HOURLY" | "MONTHLY")}
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-slate-400"
+              >
+                <option value="ALL">Tất cả hình thức</option>
+                <option value="MONTHLY">Full-time (Lương tháng)</option>
+                <option value="HOURLY">Part-time (Lương giờ)</option>
+              </select>
+
               <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5">
                 <span className="text-xs font-medium text-slate-600">
-                  Đơn giá giờ:
+                  Mức giờ mặc định:
                 </span>
                 <input
                   type="number"
@@ -825,70 +1321,98 @@ export default function Attendance() {
               </label>
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportCompanyReportCsv}
-              disabled={!report || report.rows.length === 0}
-              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700 disabled:opacity-50"
-            >
-              <Download size={15} />
-              Xuất CSV
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportCompanyReportExcel}
+                disabled={!report || report.rows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
+                title="Xuất bảng lương Excel (.xls) có đầy đủ màu sắc, giãn dòng và định dạng tiền tệ"
+              >
+                <FileSpreadsheet size={15} />
+                Xuất Excel (.xls)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportCompanyReportCsv}
+                disabled={!report || report.rows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50"
+                title="Xuất file CSV tiếng Việt UTF-8"
+              >
+                <Download size={14} />
+                Xuất CSV
+              </button>
+            </div>
           </div>
 
-          {report && report.rows.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
-                  Tổng giờ làm việc thực tế
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
-                  {(
-                    report.rows.reduce((acc, r) => acc + r.total_working_minutes, 0) / 60
-                  ).toFixed(1)}
-                  h
-                </p>
+          {report && report.rows.length > 0 && (() => {
+            const filteredRows = report.rows.filter((r) => {
+              if (salaryTypeFilter !== "ALL") {
+                const type = (r.salary_type || "HOURLY").toUpperCase();
+                if (type !== salaryTypeFilter) return false;
+              }
+              if (hideEmptyRows) {
+                if (
+                  r.total_working_minutes === 0 &&
+                  r.present_days === 0 &&
+                  r.late_days === 0 &&
+                  r.absent_days === 0
+                ) {
+                  return false;
+                }
+              }
+              return true;
+            });
+            const totalHours = (filteredRows.reduce((acc, r) => acc + r.total_working_minutes, 0) / 60).toFixed(1);
+            const totalLate = filteredRows.reduce((acc, r) => acc + r.total_late_minutes, 0);
+            const totalOt = (filteredRows.reduce((acc, r) => acc + r.total_overtime_minutes, 0) / 60).toFixed(1);
+            const totalPayroll = filteredRows.reduce((acc, r) => acc + calculateRowPayroll(r), 0);
+            const ftCount = filteredRows.filter((r) => (r.salary_type || "").toUpperCase() === "MONTHLY").length;
+            const ptCount = filteredRows.length - ftCount;
+
+            return (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">
+                    Tổng giờ làm việc thực tế
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                    {totalHours}h
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">
+                    Số phút trễ ca mở quầy
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                    {totalLate}p
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">
+                    Giờ tăng ca (OT)
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                    {totalOt}h
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-slate-500">
+                      Tổng quỹ lương thực chi
+                    </p>
+                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      {ftCount} FT · {ptCount} PT
+                    </span>
+                  </div>
+                  <p className="mt-1 text-2xl font-bold text-emerald-700">
+                    {totalPayroll.toLocaleString("vi-VN")} đ
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
-                  Số phút trễ ca mở quầy
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
-                  {report.rows.reduce((acc, r) => acc + r.total_late_minutes, 0)}p
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
-                  Giờ tăng ca (OT)
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
-                  {(
-                    report.rows.reduce((acc, r) => acc + r.total_overtime_minutes, 0) / 60
-                  ).toFixed(1)}
-                  h
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
-                  Ước tính lương theo giờ
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
-                  {report.rows
-                    .reduce(
-                      (acc, r) =>
-                        acc +
-                        calculateFnbPayrollVnd(
-                          r.total_working_minutes,
-                          r.total_overtime_minutes
-                        ),
-                      0
-                    )
-                    .toLocaleString("vi-VN")}
-                  đ
-                </p>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             {reportLoading ? (
@@ -905,32 +1429,40 @@ export default function Attendance() {
                       <th className="px-4 py-3.5">Mã NV</th>
                       <th className="px-4 py-3.5">Họ và tên</th>
                       <th className="px-4 py-3.5">Vị trí / Quầy</th>
+                      <th className="px-4 py-3.5">Chính sách & Mức lương</th>
                       <th className="px-4 py-3.5 text-center">Đúng giờ</th>
                       <th className="px-4 py-3.5 text-center">Đi trễ</th>
                       <th className="px-4 py-3.5 text-center">Vắng</th>
                       <th className="px-4 py-3.5 text-right">Tổng giờ công</th>
                       <th className="px-4 py-3.5 text-right">Phút trễ</th>
                       <th className="px-4 py-3.5 text-right">Tăng ca</th>
-                      <th className="px-4 py-3.5 text-right">Lương tạm tính</th>
+                      <th className="px-4 py-3.5 text-right">Lương thực nhận</th>
                       <th className="px-4 py-3.5 text-right">Độ khớp</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {[...report.rows]
-                      .filter((r) =>
-                        hideEmptyRows
-                          ? r.total_working_minutes > 0 ||
-                            r.present_days > 0 ||
-                            r.late_days > 0 ||
-                            r.absent_days > 0
-                          : true
-                      )
+                      .filter((r) => {
+                        if (salaryTypeFilter !== "ALL") {
+                          const type = (r.salary_type || "HOURLY").toUpperCase();
+                          if (type !== salaryTypeFilter) return false;
+                        }
+                        if (hideEmptyRows) {
+                          if (
+                            r.total_working_minutes === 0 &&
+                            r.present_days === 0 &&
+                            r.late_days === 0 &&
+                            r.absent_days === 0
+                          ) {
+                            return false;
+                          }
+                        }
+                        return true;
+                      })
                       .sort((a, b) => b.total_working_minutes - a.total_working_minutes)
                       .map((row) => {
-                        const payroll = calculateFnbPayrollVnd(
-                          row.total_working_minutes,
-                          row.total_overtime_minutes
-                        );
+                        const payroll = calculateRowPayroll(row);
+                        const isMonthly = (row.salary_type || "").toUpperCase() === "MONTHLY";
                         return (
                           <tr key={row.employee_id} className="hover:bg-slate-50/80">
                             <td className="px-4 py-3.5 font-mono text-xs font-medium text-slate-500">
@@ -941,6 +1473,41 @@ export default function Attendance() {
                             </td>
                             <td className="px-4 py-3.5 text-slate-600">
                               {row.department || "—"}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {isMonthly ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <span className="inline-flex rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">
+                                      Full-time
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-800">
+                                      {(row.base_salary || 0).toLocaleString("vi-VN")} đ/tháng
+                                    </span>
+                                  </div>
+                                  {row.allowance ? (
+                                    <span className="text-[11px] font-medium text-emerald-600">
+                                      +{(row.allowance || 0).toLocaleString("vi-VN")} đ phụ cấp
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <span className="inline-flex rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700">
+                                      Part-time
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-800">
+                                      {(row.hourly_rate || 30000).toLocaleString("vi-VN")} đ/h
+                                    </span>
+                                  </div>
+                                  {row.allowance ? (
+                                    <span className="text-[11px] font-medium text-emerald-600">
+                                      +{(row.allowance || 0).toLocaleString("vi-VN")} đ phụ cấp
+                                    </span>
+                                  ) : null}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3.5 text-center text-slate-700">
                               {row.present_days > 0 ? row.present_days : <span className="text-slate-300">—</span>}
@@ -972,9 +1539,9 @@ export default function Attendance() {
                                 <span className="text-slate-300">—</span>
                               )}
                             </td>
-                            <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                            <td className="px-4 py-3.5 text-right font-bold text-emerald-700">
                               {payroll > 0 ? (
-                                `${payroll.toLocaleString("vi-VN")}đ`
+                                `${payroll.toLocaleString("vi-VN")} đ`
                               ) : (
                                 <span className="font-normal text-slate-300">—</span>
                               )}
@@ -1211,14 +1778,25 @@ export default function Attendance() {
               </div>
 
               {calendar && (
-                <button
-                  type="button"
-                  onClick={handleExportCalendarCsv}
-                  className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <Download size={15} />
-                  Xuất CSV
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleExportCalendarExcel}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-emerald-700"
+                    title="Xuất bảng công Excel (.xls) có đầy đủ màu sắc và giãn hàng"
+                  >
+                    <FileSpreadsheet size={14} />
+                    Xuất Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportCalendarCsv}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <Download size={14} />
+                    Xuất CSV
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -1264,14 +1842,12 @@ export default function Attendance() {
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
                     <p className="text-xs text-slate-500">
-                      Ước tính lương theo giờ
+                      {selectedEmployee?.salary_type === "MONTHLY"
+                        ? "Lương tạm tính (Full-time)"
+                        : "Lương tạm tính (Part-time)"}
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-slate-900">
-                      {calculateFnbPayrollVnd(
-                        calendarSummary.workingMinutes,
-                        calendarSummary.overtimeMinutes
-                      ).toLocaleString("vi-VN")}
-                      đ
+                      {calculateEmployeeCalendarPayroll().toLocaleString("vi-VN")} đ
                     </p>
                   </div>
                 </div>
@@ -1289,14 +1865,25 @@ export default function Attendance() {
                       </div>
                       <div className="flex items-center gap-2">
                         {!isAdmin && (
-                          <button
-                            type="button"
-                            onClick={handleExportCalendarCsv}
-                            className="mr-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                          >
-                            <Download size={14} />
-                            Xuất CSV
-                          </button>
+                          <div className="mr-2 flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleExportCalendarExcel}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700"
+                              title="Xuất bảng công Excel (.xls)"
+                            >
+                              <FileSpreadsheet size={14} />
+                              Xuất Excel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleExportCalendarCsv}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              <Download size={14} />
+                              Xuất CSV
+                            </button>
+                          </div>
                         )}
                         <button
                           type="button"

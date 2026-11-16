@@ -89,12 +89,18 @@ export interface MonthlyTimesheetRow {
   total_overtime_minutes: number;
   avg_face_similarity: number | null;
   avg_liveness_score: number | null;
+  salary_type?: string;
+  base_salary?: number;
+  hourly_rate?: number;
+  allowance?: number;
+  calculated_payroll?: number;
 }
 
 export interface MonthlyTimesheetReportResponse {
   year: number;
   month: number;
   total_employees: number;
+  total_payroll?: number;
   rows: MonthlyTimesheetRow[];
 }
 

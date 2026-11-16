@@ -512,12 +512,147 @@ def test_monthly_timesheet_report_and_ai_metrics(db_session, auth_headers, emplo
     assert row["late_days"] == 1
     assert row["total_working_minutes"] == 510
     assert row["total_overtime_minutes"] == 40
+    assert row["salary_type"] == "HOURLY"
+    assert row["hourly_rate"] == 30000.0
+    assert row["calculated_payroll"] > 0
 
     metrics_resp = client.get("/api/attendance/ai-metrics", headers=auth_headers)
     assert metrics_resp.status_code == 200
     metrics_data = metrics_resp.json()
     assert metrics_data["verified_count"] == 1
     assert metrics_data["avg_face_similarity"] == 0.92
+
+
+def test_tiered_compensation_monthly_and_hourly_payroll(
+    db_session,
+    auth_headers,
+):
+    from app.api.routes.auth import get_or_create_store_profile
+    from app.models.employee import SalaryType
+
+    admin_user = db_session.query(User).filter(User.role == UserRole.ADMIN).first()
+    store = get_or_create_store_profile(db_session, admin_user)
+
+    # Create Full-Time Monthly Manager (12,000,000 VND / month, 1,000,000 VND allowance)
+    mgr_user = User(
+        username="manager_ft",
+        password_hash="fakehash",
+        role=UserRole.EMPLOYEE,
+        store_id=store.id,
+    )
+    db_session.add(mgr_user)
+    db_session.flush()
+
+    mgr_emp = Employee(
+        user_id=mgr_user.id,
+        employee_code="MGR-001",
+        full_name="Trần Văn Quản Lý",
+        email="mgr@averis.vn",
+        department="Quản lý",
+        store_id=store.id,
+        salary_type=SalaryType.MONTHLY,
+        base_salary=12000000.0,
+        hourly_rate=0.0,
+        allowance=1000000.0,
+    )
+    db_session.add(mgr_emp)
+
+    # Create Part-Time Hourly Barista (35,000 VND / hour, 200,000 VND allowance)
+    bar_user = User(
+        username="barista_pt",
+        password_hash="fakehash",
+        role=UserRole.EMPLOYEE,
+        store_id=store.id,
+    )
+    db_session.add(bar_user)
+    db_session.flush()
+
+    bar_emp = Employee(
+        user_id=bar_user.id,
+        employee_code="BAR-001",
+        full_name="Lê Văn Pha Chế",
+        email="bar@averis.vn",
+        department="Pha chế",
+        store_id=store.id,
+        salary_type=SalaryType.HOURLY,
+        base_salary=0.0,
+        hourly_rate=35000.0,
+        allowance=200000.0,
+    )
+    db_session.add(bar_emp)
+    db_session.flush()
+
+    # Add 2 attendance days for manager: 1 PRESENT (8h + 1h OT = 9h = 540m, 60m OT), 1 LATE (8h = 480m)
+    # Total days = 2. Total OT = 60 mins (1 hr).
+    db_session.add(
+        Attendance(
+            employee_id=mgr_emp.id,
+            date=date(2026, 11, 2),
+            check_in=datetime(2026, 11, 2, 8, 0, tzinfo=timezone.utc),
+            check_out=datetime(2026, 11, 2, 17, 0, tzinfo=timezone.utc),
+            status=AttendanceStatus.PRESENT,
+            working_minutes=540,
+            overtime_minutes=60,
+        )
+    )
+    db_session.add(
+        Attendance(
+            employee_id=mgr_emp.id,
+            date=date(2026, 11, 3),
+            check_in=datetime(2026, 11, 3, 8, 15, tzinfo=timezone.utc),
+            check_out=datetime(2026, 11, 3, 16, 15, tzinfo=timezone.utc),
+            status=AttendanceStatus.LATE,
+            working_minutes=480,
+            overtime_minutes=0,
+        )
+    )
+
+    # Add 1 attendance day for barista: 6 hours (360m) regular + 2 hours (120m) OT = 480m total, 120m OT
+    db_session.add(
+        Attendance(
+            employee_id=bar_emp.id,
+            date=date(2026, 11, 2),
+            check_in=datetime(2026, 11, 2, 14, 0, tzinfo=timezone.utc),
+            check_out=datetime(2026, 11, 2, 22, 0, tzinfo=timezone.utc),
+            status=AttendanceStatus.PRESENT,
+            working_minutes=480,
+            overtime_minutes=120,
+        )
+    )
+    db_session.commit()
+
+    resp = client.get(
+        "/api/attendance/report",
+        params={"year": 2026, "month": 11},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_employees"] >= 2
+    assert "total_payroll" in data
+
+    mgr_row = next(r for r in data["rows"] if r["employee_id"] == mgr_emp.id)
+    assert mgr_row["salary_type"] == "MONTHLY"
+    assert mgr_row["base_salary"] == 12000000.0
+    assert mgr_row["allowance"] == 1000000.0
+    assert mgr_row["present_days"] == 1
+    assert mgr_row["late_days"] == 1
+    assert mgr_row["total_overtime_minutes"] == 60
+    # Expected: (12M / 26 * 2) + (1h OT * (12M / 26 / 8 * 1.5)) + 1M allowance
+    expected_mgr_regular = (12000000.0 / 26.0) * 2
+    expected_mgr_ot = 1.0 * (12000000.0 / 26.0 / 8.0 * 1.5)
+    expected_mgr_payroll = round(expected_mgr_regular + expected_mgr_ot + 1000000.0)
+    assert mgr_row["calculated_payroll"] == expected_mgr_payroll
+
+    bar_row = next(r for r in data["rows"] if r["employee_id"] == bar_emp.id)
+    assert bar_row["salary_type"] == "HOURLY"
+    assert bar_row["hourly_rate"] == 35000.0
+    assert bar_row["allowance"] == 200000.0
+    assert bar_row["total_working_minutes"] == 480
+    assert bar_row["total_overtime_minutes"] == 120
+    # Regular hours = (480 - 120) / 60 = 6h. OT hours = 120 / 60 = 2h.
+    # Regular pay = 6 * 35,000 = 210,000. OT pay = 2 * 35,000 * 1.5 = 105,000. Allowance = 200,000. Total = 515,000.
+    assert bar_row["calculated_payroll"] == (6 * 35000 + 2 * 35000 * 1.5 + 200000)
 
 
 def test_attendance_request_create_and_admin_approve_workflow(

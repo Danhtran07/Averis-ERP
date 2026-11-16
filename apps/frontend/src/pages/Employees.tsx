@@ -4,12 +4,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { Link } from "react-router-dom";
 import {
   DrawingUtils,
   FaceLandmarker,
   FilesetResolver,
 } from "@mediapipe/tasks-vision";
-import { BadgeCheck, Pencil, ScanFace, Search, Trash2, UsersRound } from "lucide-react";
+import { BadgeCheck, Banknote, Pencil, ScanFace, Search, Trash2, UsersRound } from "lucide-react";
 
 import {
   createEmployee,
@@ -1066,32 +1067,41 @@ export default function Employees() {
         </div>
 
 
-        {isAdmin && <button
-          type="button"
-          onClick={openCreateModal}
-          disabled={loading}
-          className="
-            inline-flex
-            items-center
-            justify-center
-            rounded-md
-            bg-gradient-to-r from-sky-600 to-blue-600
-            px-4 py-2
-            text-sm font-semibold
-            text-white
-            shadow-sm shadow-sky-600/20
-            transition
-            hover:from-sky-700 hover:to-blue-700
-            disabled:cursor-not-allowed
-            disabled:opacity-50
-          "
-        >
-          <span className="mr-1.5">
-            +
-          </span>
+        {isAdmin && (
+          <div className="flex items-center gap-2.5">
+            <Link
+              to="/salaries"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
+            >
+              <Banknote size={15} className="text-sky-600" />
+              <span>Chính sách lương</span>
+            </Link>
 
-          Thêm nhân sự
-        </button>}
+            <button
+              type="button"
+              onClick={openCreateModal}
+              disabled={loading}
+              className="
+                inline-flex
+                items-center
+                justify-center
+                rounded-xl
+                bg-gradient-to-r from-sky-600 to-blue-600
+                px-4 py-2
+                text-sm font-semibold
+                text-white
+                shadow-sm shadow-sky-600/20
+                transition
+                hover:from-sky-700 hover:to-blue-700
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+            >
+              <span className="mr-1.5">+</span>
+              Thêm nhân sự
+            </button>
+          </div>
+        )}
 
       </header>
 
@@ -2290,6 +2300,21 @@ export default function Employees() {
                     ))}
                   </div>
                 </FormField>
+
+
+                {/* Note about salary configuration */}
+                <div className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50/60 p-3 text-xs text-sky-800">
+                  <div className="flex items-center gap-2">
+                    <Banknote size={16} className="text-sky-600 shrink-0" />
+                    <span>Chính sách đãi ngộ &amp; mức lương được cấu hình tại mục <strong>Chính sách lương</strong>.</span>
+                  </div>
+                  <Link
+                    to="/salaries"
+                    className="font-semibold text-sky-700 underline hover:text-sky-900 shrink-0"
+                  >
+                    Mở cấu hình
+                  </Link>
+                </div>
 
 
                 {/* User Account - CREATE ONLY */}

@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Attendance from "./pages/Attendance";
 import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
+import Salaries from "./pages/Salaries";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Users from "./pages/Users";
@@ -37,6 +38,14 @@ createRoot(
             <Route path="/recognition" element={<App />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/employees" element={<Employees />} />
+            <Route
+              path="/salaries"
+              element={
+                <AdminRoute>
+                  <Salaries />
+                </AdminRoute>
+              }
+            />
             <Route path="/attendance" element={<Attendance />} />
             <Route
               path="/timesheet"

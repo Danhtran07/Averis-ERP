@@ -570,6 +570,7 @@ def get_monthly_timesheet_report(
         by_employee.setdefault(record.employee_id, []).append(record)
 
     rows: list[MonthlyTimesheetRow] = []
+    total_payroll = 0.0
     for emp in employees:
         emp_records = by_employee.get(emp.id, [])
         present_days = sum(1 for r in emp_records if r.status == AttendanceStatus.PRESENT)
@@ -581,6 +582,41 @@ def get_monthly_timesheet_report(
         total_ot = sum(r.overtime_minutes or 0 for r in emp_records)
         similarities = [r.face_similarity for r in emp_records if r.face_similarity is not None]
         liveness_scores = [r.liveness_score for r in emp_records if r.liveness_score is not None]
+
+        # Calculate tiered payroll based on salary_type
+        emp_salary_type = getattr(emp, "salary_type", "HOURLY")
+        if hasattr(emp_salary_type, "value"):
+            emp_salary_type = emp_salary_type.value
+        emp_salary_type_str = str(emp_salary_type).upper()
+
+        base_sal = float(getattr(emp, "base_salary", 0.0) or 0.0)
+        hr_rate = float(getattr(emp, "hourly_rate", 30000.0) or 30000.0)
+        allowance_val = float(getattr(emp, "allowance", 0.0) or 0.0)
+
+        actual_worked_days = present_days + late_days
+        ot_hours = total_ot / 60.0
+
+        if emp_salary_type_str == "MONTHLY":
+            # Full-time monthly salary
+            # Standard: 26 công chuẩn / tháng
+            daily_rate = base_sal / 26.0 if base_sal > 0 else 0.0
+            base_earned = daily_rate * actual_worked_days
+            # Standard OT rate for monthly staff: (base_salary / 26 / 8) * 1.5
+            hourly_equiv = (base_sal / (26.0 * 8.0)) if base_sal > 0 else 0.0
+            ot_earned = ot_hours * hourly_equiv * 1.5
+            allowance_earned = allowance_val if actual_worked_days > 0 else 0.0
+            payroll = round(base_earned + ot_earned + allowance_earned)
+        else:
+            # Hourly / Part-time staff
+            # Regular hours = total_working - total_ot
+            regular_minutes = max(0, total_working - total_ot)
+            reg_earned = (regular_minutes / 60.0) * hr_rate
+            ot_earned = ot_hours * (hr_rate * 1.5)
+            allowance_earned = allowance_val if actual_worked_days > 0 else 0.0
+            payroll = round(reg_earned + ot_earned + allowance_earned)
+
+        total_payroll += payroll
+
         rows.append(
             MonthlyTimesheetRow(
                 employee_id=emp.id,
@@ -604,6 +640,11 @@ def get_monthly_timesheet_report(
                     if liveness_scores
                     else None
                 ),
+                salary_type=emp_salary_type_str,
+                base_salary=base_sal,
+                hourly_rate=hr_rate,
+                allowance=allowance_val,
+                calculated_payroll=payroll,
             )
         )
 
@@ -611,6 +652,7 @@ def get_monthly_timesheet_report(
         year=year,
         month=month,
         total_employees=len(rows),
+        total_payroll=total_payroll,
         rows=rows,
     )
 

@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_serializer
 
 from app.core.timezone import to_vietnam_time
+from app.models.employee import SalaryType
 
 
 class EmployeeBase(BaseModel):
@@ -10,6 +11,10 @@ class EmployeeBase(BaseModel):
     full_name: str
     email: str
     department: str | None = None
+    salary_type: SalaryType = SalaryType.HOURLY
+    base_salary: float = 0.0
+    hourly_rate: float = 30000.0
+    allowance: float = 0.0
 
 
 class EmployeeCreate(EmployeeBase):
@@ -21,6 +26,10 @@ class EmployeeUpdate(BaseModel):
     full_name: str | None = None
     email: str | None = None
     department: str | None = None
+    salary_type: SalaryType | None = None
+    base_salary: float | None = None
+    hourly_rate: float | None = None
+    allowance: float | None = None
 
 
 class EmployeeResponse(EmployeeBase):

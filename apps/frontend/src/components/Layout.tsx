@@ -6,6 +6,7 @@ import {
 } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
+  Banknote,
   CalendarCheck2,
   CalendarDays,
   Clock3,
@@ -69,6 +70,7 @@ export default function Layout() {
   const isEmployeesActive =
     location.pathname.startsWith("/employees") &&
     !location.pathname.endsWith("/schedule");
+  const isSalariesActive = location.pathname.startsWith("/salaries");
   const isTimesheetActive =
     location.pathname.startsWith("/timesheet") ||
     (location.pathname.startsWith("/attendance") && currentTab === "timesheet");
@@ -186,6 +188,15 @@ export default function Layout() {
                 >
                   <UsersRound size={17} strokeWidth={2} />
                   <span>Nhân sự &amp; Quầy</span>
+                </Link>
+
+                <Link
+                  to="/salaries"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isSalariesActive)}
+                >
+                  <Banknote size={17} strokeWidth={2} />
+                  <span>Chính sách lương</span>
                 </Link>
 
                 <Link
