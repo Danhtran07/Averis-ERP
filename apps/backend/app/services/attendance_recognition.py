@@ -84,7 +84,6 @@ def record_recognition_attendance(
     )
 
     if attendance is None:
-        _reject_if_check_in_closed(db, employee.id, shift, local_date, server_now)
         attendance = Attendance(
             employee_id=employee.id,
             shift_id=shift.id if shift is not None else None,
@@ -102,6 +101,20 @@ def record_recognition_attendance(
             session_id=recognition.session_id,
         )
         db.add(attendance)
+    elif attendance.check_in is None:
+        attendance.shift_id = shift.id if shift is not None else attendance.shift_id
+        attendance.check_in = server_now
+        attendance.check_out = None
+        attendance.status = attendance_status
+        attendance.late_minutes = metrics.late_minutes
+        attendance.early_leave_minutes = metrics.early_leave_minutes
+        attendance.working_minutes = metrics.working_minutes
+        attendance.overtime_minutes = metrics.overtime_minutes
+        attendance.timestamp = server_now
+        attendance.face_similarity = recognition.confidence
+        attendance.liveness_score = recognition.liveness_score
+        attendance.verification_status = recognition.verification_status
+        attendance.session_id = recognition.session_id
     elif attendance.check_out is None:
         if attendance.check_in is not None:
             elapsed_seconds = (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Clock, RefreshCw, ScanFace, ShieldCheck, Volume2, VolumeX } from "lucide-react";
+import { Camera, Clock, RefreshCw, ScanFace, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import {
   DrawingUtils,
   FaceLandmarker,
@@ -26,6 +26,35 @@ const FACE_LANDMARKER_MODEL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 const COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes anti-double-punch cooldown
+const CAMERA_WARMUP_MS = 1500; // 1.5s warm-up after camera opens before starting face lock
+const REQUIRED_STABLE_MS = 2600; // 2.6s of continuous real wall-clock time holding face steady
+
+async function playVideoSafely(video: HTMLVideoElement, stream: MediaStream): Promise<void> {
+  if (video.srcObject !== stream) {
+    video.srcObject = stream;
+  }
+  if (video.readyState < 1) {
+    await new Promise<void>((resolve) => {
+      const onLoaded = () => {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        resolve();
+      };
+      video.addEventListener("loadedmetadata", onLoaded, { once: true });
+      window.setTimeout(resolve, 700);
+    });
+  }
+  try {
+    await video.play();
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return;
+    }
+    if (err instanceof Error && err.message.includes("interrupted by a new load request")) {
+      return;
+    }
+    throw err;
+  }
+}
 
 function playKioskTing(enabled = true) {
   if (!enabled) return;
@@ -80,7 +109,6 @@ function playKioskAlertTone(kind: "cooldown" | "error", enabled = true) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     if (kind === "cooldown") {
-      // Gentle two-note reminder tone
       osc.type = "sine";
       osc.frequency.setValueAtTime(587.33, now);
       osc.frequency.setValueAtTime(440.0, now + 0.11);
@@ -91,7 +119,6 @@ function playKioskAlertTone(kind: "cooldown" | "error", enabled = true) {
       osc.start(now);
       osc.stop(now + 0.26);
     } else {
-      // Short error double-beep
       osc.type = "triangle";
       osc.frequency.setValueAtTime(320, now);
       osc.frequency.setValueAtTime(240, now + 0.12);
@@ -128,8 +155,11 @@ export default function App() {
   const meshCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const meshAnimationRef = useRef<number | null>(null);
-  const fallbackTimerRef = useRef<number | null>(null);
+  const fallbackIntervalRef = useRef<number | null>(null);
   const captureTriggeredRef = useRef(false);
+  const cameraOpenedAtRef = useRef<number>(0);
+  const stableStartMsRef = useRef<number | null>(null);
+  const cameraSessionIdRef = useRef<number>(0);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const lastPunchByEmployeeRef = useRef<
     Record<number, { name: string; punchedAt: number; checkIn: string | null }>
@@ -139,21 +169,22 @@ export default function App() {
   const [error, setError] = useState("");
   const [cooldownMessage, setCooldownMessage] = useState("");
   const [result, setResult] = useState<RecognitionAttendanceResponse | null>(null);
+  const [lockProgress, setLockProgress] = useState(0);
   const [feedback, setFeedback] = useState(
-    "Nhìn thẳng vào camera — AI tự động kiểm tra chống giả mạo ngầm trong 0.5 giây..."
+    "Đặt khuôn mặt vào khung oval và giữ yên..."
   );
   const [kioskMode, setKioskMode] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [kioskCountdown, setKioskCountdown] = useState(3);
+  const [kioskCountdown, setKioskCountdown] = useState(5);
 
   const stopFaceMesh = () => {
     if (meshAnimationRef.current !== null) {
       window.cancelAnimationFrame(meshAnimationRef.current);
       meshAnimationRef.current = null;
     }
-    if (fallbackTimerRef.current !== null) {
-      window.clearTimeout(fallbackTimerRef.current);
-      fallbackTimerRef.current = null;
+    if (fallbackIntervalRef.current !== null) {
+      window.clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = null;
     }
     faceLandmarkerRef.current?.close();
     faceLandmarkerRef.current = null;
@@ -162,17 +193,23 @@ export default function App() {
   };
 
   const stopCamera = () => {
+    cameraSessionIdRef.current += 1;
     stopFaceMesh();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+    stableStartMsRef.current = null;
+    setLockProgress(0);
   };
 
   const captureFrameBlob = async (): Promise<Blob> => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
-      throw new Error("Camera chưa sẵn sàng. Vui lòng thử lại sau giây lát.");
+      throw new Error("Camera chưa sẵn sàng. Vui lòng đợi camera hiển thị hình ảnh.");
     }
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -188,26 +225,20 @@ export default function App() {
             ? resolve(blob)
             : reject(new Error("Không thể mã hoá hình ảnh từ camera.")),
         "image/jpeg",
-        0.9
+        0.92
       );
     });
   };
 
-  const runPassiveCaptureAndRecognize = async () => {
+  const runPassiveCaptureAndRecognize = async (isManual = false) => {
     if (captureTriggeredRef.current) return;
     captureTriggeredRef.current = true;
-    if (fallbackTimerRef.current !== null) {
-      window.clearTimeout(fallbackTimerRef.current);
-      fallbackTimerRef.current = null;
-    }
 
     try {
-      setFeedback("Đang chụp 2 khung hình liên tiếp (200ms) để kiểm tra vi chuyển động & độ sâu 3D...");
-      // Frame 1 (auxImage at t = 0ms)
+      setLockProgress(100);
+      setFeedback("Đang chụp 2 khung hình liên tiếp (200ms) để xác thực chống giả mạo ngầm...");
       const auxFrameBlob = await captureFrameBlob();
-      // Wait ~200ms to capture natural micro-movement between 2 consecutive frames
-      await new Promise((resolve) => window.setTimeout(resolve, 200));
-      // Frame 2 (primaryImage at t = +200ms)
+      await new Promise((resolve) => window.setTimeout(resolve, 220));
       const primaryFrameBlob = await captureFrameBlob();
 
       setState("recognizing");
@@ -229,7 +260,6 @@ export default function App() {
       stopCamera();
       setState("success");
     } catch (reason) {
-      stopCamera();
       const message = getApiErrorMessage(
         reason,
         "Nhận diện khuôn mặt thất bại. Vui lòng nhìn thẳng vào camera và thử lại."
@@ -239,6 +269,25 @@ export default function App() {
         message.includes("wait at least") ||
         message.includes("already completed");
 
+      // If auto-capture fired before the user's face was clearly in frame, keep camera open and retry smoothly!
+      const isTransientFacePosition =
+        !isManual &&
+        (message.includes("No face detected") ||
+          message.includes("too far") ||
+          message.includes("quá nhỏ") ||
+          message.includes("chưa sẵn sàng"));
+
+      if (isTransientFacePosition && streamRef.current) {
+        captureTriggeredRef.current = false;
+        stableStartMsRef.current = null;
+        cameraOpenedAtRef.current = performance.now();
+        setLockProgress(0);
+        setState("camera");
+        setFeedback("Chưa thấy rõ khuôn mặt trong khung oval — vui lòng nhìn thẳng và giữ yên...");
+        return;
+      }
+
+      stopCamera();
       if (isCooldownError) {
         playKioskAlertTone("cooldown", soundEnabled);
         setCooldownMessage(
@@ -254,39 +303,94 @@ export default function App() {
     }
   };
 
-  const startFaceMeshAndPassiveTrigger = async () => {
+  const startFallbackCountdownLoop = (sessionId: number) => {
+    if (fallbackIntervalRef.current !== null) {
+      window.clearInterval(fallbackIntervalRef.current);
+    }
+    fallbackIntervalRef.current = window.setInterval(() => {
+      if (cameraSessionIdRef.current !== sessionId || captureTriggeredRef.current) return;
+      const now = performance.now();
+      const elapsedSinceOpen = now - cameraOpenedAtRef.current;
+      if (elapsedSinceOpen < CAMERA_WARMUP_MS) {
+        setLockProgress(0);
+        setFeedback("Đang ổn định ánh sáng camera — vui lòng đưa mặt vào khung oval...");
+        return;
+      }
+      const lockElapsed = elapsedSinceOpen - CAMERA_WARMUP_MS;
+      const pct = Math.min(100, Math.round((lockElapsed / REQUIRED_STABLE_MS) * 100));
+      const remainingSec = Math.max(1, Math.ceil((REQUIRED_STABLE_MS - lockElapsed) / 1000));
+      setLockProgress(pct);
+      setFeedback(`Giữ yên khuôn mặt trong khung oval... (${remainingSec}s)`);
+      if (lockElapsed >= REQUIRED_STABLE_MS && !captureTriggeredRef.current) {
+        void runPassiveCaptureAndRecognize(false);
+      }
+    }, 120);
+  };
+
+  const startFaceMeshAndPassiveTrigger = async (sessionId: number) => {
     const video = videoRef.current;
     const canvas = meshCanvasRef.current;
-    if (!video || !canvas) return;
+    if (!video || !canvas || cameraSessionIdRef.current !== sessionId) return;
 
     const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
     );
-    const landmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: FACE_LANDMARKER_MODEL,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numFaces: 1,
-    });
+    let landmarker: FaceLandmarker;
+    try {
+      landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: FACE_LANDMARKER_MODEL,
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+      });
+    } catch {
+      landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: FACE_LANDMARKER_MODEL,
+          delegate: "CPU",
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+      });
+    }
+
+    if (cameraSessionIdRef.current !== sessionId) {
+      landmarker.close();
+      return;
+    }
+
     faceLandmarkerRef.current = landmarker;
     const context = canvas.getContext("2d");
     if (!context) return;
     const drawingUtils = new DrawingUtils(context);
 
-    let stableFrames = 0;
-
     const drawMesh = () => {
-      if (!video || !canvas || !faceLandmarkerRef.current) return;
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
+      if (
+        cameraSessionIdRef.current !== sessionId ||
+        !video ||
+        !canvas ||
+        !faceLandmarkerRef.current
+      ) {
+        return;
+      }
+      if (video.videoWidth > 0 && video.videoHeight > 0 && !captureTriggeredRef.current) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.clearRect(0, 0, canvas.width, canvas.height);
-        const detection: FaceLandmarkerResult = landmarker.detectForVideo(
-          video,
-          performance.now()
-        );
+
+        const now = performance.now();
+        // Wait 1.5s warm-up after opening camera before starting countdown
+        if (now - cameraOpenedAtRef.current < CAMERA_WARMUP_MS) {
+          stableStartMsRef.current = null;
+          setLockProgress(0);
+          setFeedback("Đang ổn định ánh sáng camera — vui lòng nhìn vào khung oval...");
+          meshAnimationRef.current = window.requestAnimationFrame(drawMesh);
+          return;
+        }
+
+        const detection: FaceLandmarkerResult = landmarker.detectForVideo(video, now);
         if (detection.faceLandmarks.length === 1) {
           const landmarks = detection.faceLandmarks[0];
           drawingUtils.drawConnectors(
@@ -295,7 +399,6 @@ export default function App() {
             { color: "rgba(56, 189, 248, 0.72)", lineWidth: 1 }
           );
 
-          // Check 3D depth variance (passive anti-flat-photo check) and centering
           const xs = landmarks.map((lm) => lm.x);
           const ys = landmarks.map((lm) => lm.y);
           const zs = landmarks.map((lm) => lm.z);
@@ -311,25 +414,40 @@ export default function App() {
             zs.reduce((acc, z) => acc + (z - zMean) ** 2, 0) / zs.length
           );
 
-          const centered = cx > 0.25 && cx < 0.75 && cy > 0.18 && cy < 0.82;
+          const centered = cx > 0.26 && cx < 0.74 && cy > 0.18 && cy < 0.82;
+          const largeEnough = area >= 0.06;
           const hasDepth = zStd >= 0.007;
 
-          if (centered && area >= 0.05 && hasDepth) {
-            stableFrames += 1;
-            setFeedback("Đã khóa mục tiêu khuôn mặt 3D — đang chấm công tức thì...");
-            if (stableFrames >= 4 && !captureTriggeredRef.current) {
-              void runPassiveCaptureAndRecognize();
+          if (centered && largeEnough && hasDepth) {
+            if (stableStartMsRef.current === null) {
+              stableStartMsRef.current = now;
+            }
+            const stableElapsed = now - stableStartMsRef.current;
+            const pct = Math.min(100, Math.round((stableElapsed / REQUIRED_STABLE_MS) * 100));
+            const remainingSec = Math.max(1, Math.ceil((REQUIRED_STABLE_MS - stableElapsed) / 1000));
+            setLockProgress(pct);
+            setFeedback(`Giữ yên khuôn mặt... tự động chụp sau ${remainingSec}s (${pct}%)`);
+            if (stableElapsed >= REQUIRED_STABLE_MS && !captureTriggeredRef.current) {
+              void runPassiveCaptureAndRecognize(false);
               return;
             }
+          } else if (!largeEnough) {
+            stableStartMsRef.current = null;
+            setLockProgress(0);
+            setFeedback("Vui lòng tiến lại gần camera hơn một chút...");
           } else if (!hasDepth) {
-            stableFrames = 0;
+            stableStartMsRef.current = null;
+            setLockProgress(0);
             setFeedback("Không phát hiện độ sâu 3D tự nhiên. Vui lòng nhìn trực tiếp vào camera.");
           } else {
-            stableFrames = 0;
-            setFeedback("Đưa khuôn mặt vào chính giữa khung hình...");
+            stableStartMsRef.current = null;
+            setLockProgress(0);
+            setFeedback("Đưa khuôn mặt vào chính giữa khung oval...");
           }
         } else {
-          stableFrames = 0;
+          stableStartMsRef.current = null;
+          setLockProgress(0);
+          setFeedback("Đặt khuôn mặt vào trong khung oval để bắt đầu đếm ngược...");
         }
       }
       meshAnimationRef.current = window.requestAnimationFrame(drawMesh);
@@ -346,23 +464,29 @@ export default function App() {
     setError("");
     setCooldownMessage("");
     setResult(null);
-    setFeedback(
-      "Nhìn thẳng vào camera — AI tự động kiểm tra chống giả mạo ngầm trong 0.5 giây..."
-    );
+    setLockProgress(0);
+    setFeedback("Đặt khuôn mặt vào khung oval và giữ yên...");
     setState("idle");
   };
 
   const startCamera = async () => {
+    stopCamera();
+    const sessionId = cameraSessionIdRef.current;
     setError("");
     setCooldownMessage("");
     setResult(null);
+    setLockProgress(0);
     captureTriggeredRef.current = false;
+    stableStartMsRef.current = null;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Trình duyệt không hỗ trợ truy cập camera.");
       setState("failure");
       return;
     }
+
+    setState("camera");
+    setFeedback("Đang khởi động camera...");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -373,24 +497,33 @@ export default function App() {
         },
         audio: false,
       });
+
+      if (cameraSessionIdRef.current !== sessionId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = stream;
-      if (!videoRef.current) throw new Error("Không tìm thấy khung hình camera.");
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-      setState("camera");
-      setFeedback("Nhìn thẳng vào camera — đang quét nhanh & chống giả mạo ngầm (Passive AI)...");
+      const video = videoRef.current;
+      if (!video) {
+        throw new Error("Không tìm thấy khung hình camera.");
+      }
+
+      await playVideoSafely(video, stream);
+      if (cameraSessionIdRef.current !== sessionId) return;
+
+      cameraOpenedAtRef.current = performance.now();
+      setFeedback("Đặt khuôn mặt vào giữa khung oval và giữ yên...");
 
       window.requestAnimationFrame(() => {
-        void startFaceMeshAndPassiveTrigger().catch(() => undefined);
+        void startFaceMeshAndPassiveTrigger(sessionId).catch(() => {
+          if (cameraSessionIdRef.current === sessionId) {
+            startFallbackCountdownLoop(sessionId);
+          }
+        });
       });
-
-      // Fallback auto-capture after 850ms in case WebGL/MediaPipe takes longer to initialize
-      fallbackTimerRef.current = window.setTimeout(() => {
-        if (!captureTriggeredRef.current) {
-          void runPassiveCaptureAndRecognize();
-        }
-      }, 850);
     } catch (reason) {
+      if (cameraSessionIdRef.current !== sessionId) return;
       stopCamera();
       playKioskAlertTone("error", soundEnabled);
       setError(
@@ -404,15 +537,12 @@ export default function App() {
 
   useEffect(() => {
     if ((state !== "success" && state !== "cooldown") || !kioskMode) return;
-    setKioskCountdown(3);
+    setKioskCountdown(5);
     const interval = window.setInterval(() => {
       setKioskCountdown((prev) => {
         if (prev <= 1) {
           window.clearInterval(interval);
-          reset();
-          window.setTimeout(() => {
-            void startCamera();
-          }, 150);
+          void startCamera();
           return 0;
         }
         return prev - 1;
@@ -421,163 +551,7 @@ export default function App() {
     return () => window.clearInterval(interval);
   }, [state, kioskMode]);
 
-  if (state === "uploading" || state === "recognizing") {
-    return (
-      <main className="min-h-[calc(100vh-5rem)] bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white">
-          <LoadingState message="Đang xác thực Passive Liveness & nhận diện khuôn mặt..." />
-          <div className="border-t border-slate-100 px-6 py-4 text-center text-xs text-slate-500">
-            Kiểm tra độ sâu 3D, vi chuyển động 2 khung hình (200ms) và chống vân sọc màn hình (Moiré)
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (state === "cooldown") {
-    return (
-      <main className="min-h-[calc(100vh-5rem)] bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mx-auto max-w-2xl rounded-xl border border-amber-200 bg-white p-6 shadow-xs">
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-              <Clock size={22} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                Khóa chống quét đúp (Cooldown 2 phút)
-              </span>
-              <h2 className="mt-1.5 text-lg font-semibold text-slate-900">
-                Đã ghi nhận chấm công trước đó
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">{cooldownMessage}</p>
-            </div>
-          </div>
-
-          <div className="mt-6 border-t border-slate-100 pt-4">
-            {kioskMode && (
-              <p className="mb-3 text-center text-xs font-semibold text-sky-700">
-                Tự động mở lại Kiosk cho nhân sự tiếp theo sau {kioskCountdown}s...
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                reset();
-                void startCamera();
-              }}
-              className="w-full rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
-            >
-              Quét nhân sự tiếp theo
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (state === "failure") {
-    return (
-      <main className="min-h-[calc(100vh-5rem)] bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white">
-          <ErrorState message={error} onRetry={startCamera} />
-          <button
-            type="button"
-            onClick={reset}
-            className="mx-auto mb-6 block text-sm font-semibold text-slate-500 hover:text-slate-900"
-          >
-            Quay lại
-          </button>
-        </section>
-      </main>
-    );
-  }
-
-  if (state === "success" && result) {
-    const isCheckOut = Boolean(result.attendance.check_out);
-    return (
-      <main className="min-h-[calc(100vh-5rem)] bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <div>
-              <p className="text-xs font-semibold text-emerald-600">
-                {isCheckOut ? "Đã ghi nhận ra ca (Check-out)" : "Đã ghi nhận vào ca (Check-in)"}
-              </p>
-              <h1 className="mt-0.5 text-xl font-semibold text-slate-900">
-                Chấm công thành công
-              </h1>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-              <ShieldCheck size={14} />
-              Passive Liveness Đạt
-            </span>
-          </div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <p className="text-xs text-slate-500">Nhân sự</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">
-                {result.employee.name}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Mã định danh #{result.employee.id} · Đã bật khóa chống quét đúp 2 phút ({Math.round(COOLDOWN_MS / 60000)}p)
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 p-4">
-              <p className="text-xs text-slate-500">Độ khớp khuôn mặt</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">
-                {(result.recognition.confidence * 100).toFixed(1)}%
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 p-4">
-              <p className="text-xs text-slate-500">Điểm chống giả mạo ngầm (Passive AI)</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">
-                {(Math.max(result.recognition.liveness_score || 0.94, 0.88) * 100).toFixed(1)}%
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 p-4">
-              <p className="text-xs text-slate-500">Giờ vào / Giờ ra</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">
-                Vào: {formatTime(result.attendance.check_in)}
-                {result.attendance.check_out
-                  ? ` · Ra: ${formatTime(result.attendance.check_out)}`
-                  : ""}
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 p-4">
-              <p className="text-xs text-slate-500">Trạng thái</p>
-              <span
-                className={`mt-2 inline-flex rounded-lg px-3 py-1 text-sm font-semibold ${statusClass(result.attendance.status)}`}
-              >
-                {result.attendance.status === "PRESENT"
-                  ? "Đúng giờ"
-                  : result.attendance.status === "LATE"
-                    ? "Đi trễ"
-                    : result.attendance.status}
-              </span>
-            </div>
-          </div>
-          <div className="border-t border-slate-100 p-4">
-            {kioskMode && (
-              <p className="mb-3 text-center text-xs font-semibold text-sky-700">
-                Tự động quét nhân sự tiếp theo sau {kioskCountdown}s
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                reset();
-                if (kioskMode) {
-                  window.setTimeout(() => void startCamera(), 100);
-                }
-              }}
-              className="w-full rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
-            >
-              Quét tiếp
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
+  const isCheckOut = Boolean(result?.attendance.check_out);
 
   return (
     <main className="min-h-[calc(100vh-5rem)]">
@@ -587,7 +561,7 @@ export default function App() {
             <h1 className="text-xl font-semibold text-slate-900">Kiosk Chấm công</h1>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
               <ShieldCheck size={13} />
-              Passive Liveness (0.5s)
+              Passive Liveness
             </span>
           </div>
 
@@ -620,54 +594,222 @@ export default function App() {
           </div>
         </div>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
-          <div
-            className={
-              state === "camera"
-                ? "relative aspect-video overflow-hidden rounded-md bg-slate-950"
-                : "hidden"
-            }
-          >
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="relative z-0 h-full w-full scale-x-[-1] object-cover"
-            />
-            <canvas
-              ref={meshCanvasRef}
-              className="pointer-events-none absolute inset-0 z-10 h-full w-full scale-x-[-1]"
-            />
-            <div className="pointer-events-none absolute inset-[12%_35%] rounded-[50%] border-2 border-sky-400/80 shadow-[0_0_0_999px_rgba(15,23,42,0.32)]" />
-            <p className="absolute bottom-4 left-4 rounded-md bg-slate-950/75 px-3 py-2 text-xs font-medium text-white">
-              Nhìn thẳng vào khung hình — tự động chụp trong 0.5 giây
-            </p>
-          </div>
-          <canvas ref={canvasRef} className="hidden" />
-          {state === "camera" ? (
-            <div className="mt-3 rounded-md border border-sky-100 bg-sky-50/60 p-3 text-center">
-              <p className="text-xs font-semibold text-sky-700">
-                Chống giả mạo ngầm (Passive Anti-Spoofing) · Khóa quét đúp 2 phút
-              </p>
-              <p className="mt-1 text-sm font-medium text-slate-700">{feedback}</p>
+        {/* Always keep video & canvas mounted in DOM so videoRef.current is never null */}
+        <canvas ref={canvasRef} className="hidden" />
+
+        <div className={state === "idle" || state === "camera" ? "block" : "hidden"}>
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div
+              className={
+                state === "camera"
+                  ? "relative aspect-video overflow-hidden rounded-md bg-slate-950"
+                  : "hidden"
+              }
+            >
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className="relative z-0 h-full w-full scale-x-[-1] object-cover"
+              />
+              <canvas
+                ref={meshCanvasRef}
+                className="pointer-events-none absolute inset-0 z-10 h-full w-full scale-x-[-1]"
+              />
+              <div className="pointer-events-none absolute inset-[12%_35%] rounded-[50%] border-2 border-sky-400/80 shadow-[0_0_0_999px_rgba(15,23,42,0.32)]" />
+              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-3">
+                <p className="rounded-md bg-slate-950/75 px-3 py-2 text-xs font-medium text-white">
+                  {feedback}
+                </p>
+                {lockProgress > 0 && (
+                  <span className="rounded-md bg-sky-600/90 px-3 py-1.5 text-xs font-semibold text-white">
+                    {lockProgress}%
+                  </span>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-md bg-slate-100 px-4 text-center">
+
+            {state === "camera" ? (
+              <div className="mt-3 space-y-3">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-150"
+                    style={{ width: `${lockProgress}%` }}
+                  />
+                </div>
+                <div className="flex flex-col items-center justify-between gap-2 rounded-md border border-sky-100 bg-sky-50/60 px-4 py-2.5 sm:flex-row">
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs font-semibold text-sky-700">
+                      Chống giả mạo ngầm (Passive Anti-Spoofing) · Khóa quét đúp 2 phút
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-600">{feedback}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void runPassiveCaptureAndRecognize(true)}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:from-sky-700 hover:to-blue-700"
+                  >
+                    <Camera size={14} />
+                    Chụp ngay
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-md bg-slate-100 px-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => void startCamera()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
+                >
+                  <ScanFace size={18} />
+                  Bắt đầu chấm công nhanh
+                </button>
+                <p className="text-xs text-slate-500">
+                  Giữ khuôn mặt trong khung oval ~2.5 giây · Phát tiếng &ldquo;Ting!&rdquo; · Chống quét trùng 2 phút
+                </p>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {(state === "uploading" || state === "recognizing") && (
+          <section className="mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white">
+            <LoadingState message="Đang xác thực Passive Liveness & nhận diện khuôn mặt..." />
+            <div className="border-t border-slate-100 px-6 py-4 text-center text-xs text-slate-500">
+              Kiểm tra độ sâu 3D, vi chuyển động 2 khung hình (200ms) và chống vân sọc màn hình (Moiré)
+            </div>
+          </section>
+        )}
+
+        {state === "cooldown" && (
+          <section className="mx-auto max-w-2xl rounded-xl border border-amber-200 bg-white p-6 shadow-xs">
+            <div className="flex items-start gap-3.5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <Clock size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                  Khóa chống quét đúp (Cooldown 2 phút)
+                </span>
+                <h2 className="mt-1.5 text-lg font-semibold text-slate-900">
+                  Đã ghi nhận chấm công trước đó
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">{cooldownMessage}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-slate-100 pt-4">
+              {kioskMode && (
+                <p className="mb-3 text-center text-xs font-semibold text-sky-700">
+                  Tự động mở lại Kiosk cho nhân sự tiếp theo sau {kioskCountdown}s...
+                </p>
+              )}
               <button
                 type="button"
-                onClick={startCamera}
-                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
+                onClick={() => void startCamera()}
+                className="w-full rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
               >
-                <ScanFace size={18} />
-                Bắt đầu chấm công nhanh
+                Quét nhân sự tiếp theo
               </button>
-              <p className="text-xs text-slate-500">
-                Nhìn thẳng 0.5 giây · Phát tiếng &ldquo;Ting!&rdquo; · Chống quét trùng 2 phút
-              </p>
             </div>
-          )}
-        </section>
+          </section>
+        )}
+
+        {state === "failure" && (
+          <section className="mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white">
+            <ErrorState message={error} onRetry={() => void startCamera()} />
+            <button
+              type="button"
+              onClick={reset}
+              className="mx-auto mb-6 block text-sm font-semibold text-slate-500 hover:text-slate-900"
+            >
+              Quay lại
+            </button>
+          </section>
+        )}
+
+        {state === "success" && result && (
+          <section className="mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold text-emerald-600">
+                  {isCheckOut ? "Đã ghi nhận ra ca (Check-out)" : "Đã ghi nhận vào ca (Check-in)"}
+                </p>
+                <h1 className="mt-0.5 text-xl font-semibold text-slate-900">
+                  Chấm công thành công
+                </h1>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                <ShieldCheck size={14} />
+                Passive Liveness Đạt
+              </span>
+            </div>
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <p className="text-xs text-slate-500">Nhân sự</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
+                  {result.employee.name}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Mã định danh #{result.employee.id} · Đã bật khóa chống quét đúp 2 phút ({Math.round(COOLDOWN_MS / 60000)}p)
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">Độ khớp khuôn mặt</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {(result.recognition.confidence * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">Điểm chống giả mạo ngầm (Passive AI)</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {(Math.max(result.recognition.liveness_score || 0.94, 0.88) * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">Giờ vào / Giờ ra</p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  Vào: {formatTime(result.attendance.check_in)}
+                  {result.attendance.check_out
+                    ? ` · Ra: ${formatTime(result.attendance.check_out)}`
+                    : ""}
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">Trạng thái</p>
+                <span
+                  className={`mt-2 inline-flex rounded-lg px-3 py-1 text-sm font-semibold ${statusClass(result.attendance.status)}`}
+                >
+                  {result.attendance.status === "PRESENT"
+                    ? "Đúng giờ"
+                    : result.attendance.status === "LATE"
+                      ? "Đi trễ"
+                      : result.attendance.status}
+                </span>
+              </div>
+            </div>
+            <div className="border-t border-slate-100 p-4">
+              {kioskMode && (
+                <p className="mb-3 text-center text-xs font-semibold text-sky-700">
+                  Tự động quét nhân sự tiếp theo sau {kioskCountdown}s
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (kioskMode) {
+                    void startCamera();
+                  } else {
+                    reset();
+                  }
+                }}
+                className="w-full rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:from-sky-700 hover:to-blue-700"
+              >
+                Quét tiếp
+              </button>
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );

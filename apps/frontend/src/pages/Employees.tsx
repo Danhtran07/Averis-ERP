@@ -677,7 +677,7 @@ export default function Employees() {
     if (!video || !canvas) return;
 
     const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
     );
     const landmarker = await FaceLandmarker.createFromOptions(vision, {
       baseOptions: {
@@ -714,12 +714,20 @@ export default function Employees() {
     drawMesh();
   }
 
-  async function startEnrollmentLiveness() {
+  async function startEnrollmentLiveness(retryCount = 0) {
     try {
+      if (retryCount === 0) {
+        setEnrollmentFeedback("Đưa khuôn mặt vào khung hình và giữ yên (bắt đầu sau 1.5s)...");
+        await new Promise((resolve) => window.setTimeout(resolve, 1600));
+      }
       const video = cameraVideoRef.current;
       const canvas = cameraCanvasRef.current;
-      if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
-        throw new Error("Camera is not ready for liveness verification.");
+      if (!video || !canvas || !cameraStreamRef.current) return;
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        if (retryCount < 8) {
+          window.setTimeout(() => void startEnrollmentLiveness(retryCount + 1), 800);
+        }
+        return;
       }
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -733,7 +741,17 @@ export default function Employees() {
           0.9,
         );
       });
-      const session = await createLivenessSession(initialFace, true);
+      let session;
+      try {
+        session = await createLivenessSession(initialFace, true);
+      } catch (sessionErr) {
+        if (retryCount < 8 && cameraStreamRef.current) {
+          setEnrollmentFeedback("Chưa thấy rõ khuôn mặt trong khung hình — vui lòng nhìn thẳng vào camera...");
+          window.setTimeout(() => void startEnrollmentLiveness(retryCount + 1), 1500);
+          return;
+        }
+        throw sessionErr;
+      }
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const token = localStorage.getItem("access_token");
       const socket = new WebSocket(
@@ -827,10 +845,31 @@ export default function Employees() {
         throw new Error("Không tìm thấy khung hình camera.");
       }
 
-      video.srcObject = stream;
-      await video.play();
-      void startEnrollmentMesh().catch(() => setCameraError("Không thể tải lưới nhận diện khuôn mặt."));
-      void startEnrollmentLiveness();
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+      }
+      if (video.readyState < 1) {
+        await new Promise<void>((resolve) => {
+          const onLoaded = () => {
+            video.removeEventListener("loadedmetadata", onLoaded);
+            resolve();
+          };
+          video.addEventListener("loadedmetadata", onLoaded, { once: true });
+          window.setTimeout(resolve, 700);
+        });
+      }
+      try {
+        await video.play();
+      } catch (playErr) {
+        if (
+          !(playErr instanceof DOMException && playErr.name === "AbortError") &&
+          !(playErr instanceof Error && playErr.message.includes("interrupted by a new load request"))
+        ) {
+          throw playErr;
+        }
+      }
+      void startEnrollmentMesh().catch(() => undefined);
+      void startEnrollmentLiveness(0);
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "NotAllowedError"
