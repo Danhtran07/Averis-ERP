@@ -50,11 +50,18 @@ interface EmployeeForm {
   email: string;
   department: string;
   user_id: string;
+  cccd: string;
+  phone: string;
+  date_of_birth: string;
+  gender: string;
+  permanent_address: string;
+  current_address: string;
+  emergency_contact: string;
 }
 
 
 /* ============================================================
-   EMPTY FORM
+   EMPTY FORM & CODE GENERATOR
 ============================================================ */
 
 const emptyForm: EmployeeForm = {
@@ -63,7 +70,42 @@ const emptyForm: EmployeeForm = {
   email: "",
   department: "",
   user_id: "",
+  cccd: "",
+  phone: "",
+  date_of_birth: "",
+  gender: "",
+  permanent_address: "",
+  current_address: "",
+  emergency_contact: "",
 };
+
+function getDepartmentPrefix(department: string): string {
+  const lower = department.toLowerCase();
+  if (lower.includes("pha chế") || lower.includes("barista")) return "BAR";
+  if (lower.includes("thu ngân") || lower.includes("cashier")) return "CSH";
+  if (lower.includes("phục vụ") || lower.includes("server")) return "SRV";
+  if (lower.includes("bếp") || lower.includes("kitchen")) return "KIT";
+  if (lower.includes("quản lý") || lower.includes("manager")) return "MGR";
+  return "EMP";
+}
+
+function generateNextEmployeeCode(
+  existingEmployees: Employee[],
+  department: string
+): string {
+  const prefix = getDepartmentPrefix(department);
+  const existingSet = new Set(
+    existingEmployees.map((e) => e.employee_code.trim().toUpperCase())
+  );
+  let seq = existingEmployees.length + 1;
+  while (true) {
+    const candidate = `${prefix}-${String(seq).padStart(4, "0")}`;
+    if (!existingSet.has(candidate)) {
+      return candidate;
+    }
+    seq += 1;
+  }
+}
 
 const FACE_LANDMARKER_MODEL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
@@ -92,6 +134,7 @@ export default function Employees() {
   ] = useState<Employee[]>([]);
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [userLinkMode, setUserLinkMode] = useState<"existing" | "new">("existing");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
   const [newAccountForm, setNewAccountForm] = useState({
     username: "",
     password: "",
@@ -293,11 +336,12 @@ export default function Employees() {
   ========================================================== */
 
   function openCreateModal() {
-
     setEditingEmployee(null);
+    setCodeManuallyEdited(false);
 
     setForm({
       ...emptyForm,
+      employee_code: generateNextEmployeeCode(employees, ""),
     });
 
     setFormError("");
@@ -312,24 +356,22 @@ export default function Employees() {
   function openEditModal(
     employee: Employee
   ) {
-
     setEditingEmployee(employee);
+    setCodeManuallyEdited(true);
 
     setForm({
-      employee_code:
-        employee.employee_code,
-
-      full_name:
-        employee.full_name,
-
-      email:
-        employee.email,
-
-      department:
-        employee.department || "",
-
-      user_id:
-        String(employee.user_id),
+      employee_code: employee.employee_code,
+      full_name: employee.full_name,
+      email: employee.email,
+      department: employee.department || "",
+      user_id: String(employee.user_id),
+      cccd: employee.cccd || "",
+      phone: employee.phone || "",
+      date_of_birth: employee.date_of_birth || "",
+      gender: employee.gender || "",
+      permanent_address: employee.permanent_address || "",
+      current_address: employee.current_address || "",
+      emergency_contact: employee.emergency_contact || "",
     });
 
     setFormError("");
@@ -342,14 +384,13 @@ export default function Employees() {
   ========================================================== */
 
   function closeModal() {
-
     if (saving) {
       return;
     }
 
     setShowModal(false);
-
     setEditingEmployee(null);
+    setCodeManuallyEdited(false);
 
     setForm({
       ...emptyForm,
@@ -367,11 +408,20 @@ export default function Employees() {
     field: keyof EmployeeForm,
     value: string
   ) {
+    if (field === "employee_code") {
+      setCodeManuallyEdited(true);
+    }
 
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setForm((current) => {
+      const next = {
+        ...current,
+        [field]: value,
+      };
+      if (field === "department" && !editingEmployee && !codeManuallyEdited) {
+        next.employee_code = generateNextEmployeeCode(employees, value);
+      }
+      return next;
+    });
 
     setFormError("");
   }
@@ -395,15 +445,13 @@ export default function Employees() {
     -------------------------------------------------------- */
 
     if (
-      !form.employee_code.trim() ||
+      (editingEmployee && !form.employee_code.trim()) ||
       !form.full_name.trim() ||
       !form.email.trim()
     ) {
-
       setFormError(
         "Vui lòng điền đầy đủ các trường bắt buộc."
       );
-
       return;
     }
 
@@ -465,45 +513,28 @@ export default function Employees() {
       ====================================================== */
 
       if (editingEmployee) {
-
         const data: EmployeeUpdate = {
-
-          employee_code:
-            form.employee_code.trim(),
-
-          full_name:
-            form.full_name.trim(),
-
-          email:
-            form.email.trim(),
-
-          department:
-            form.department.trim()
-              ? form.department.trim()
-              : null,
+          employee_code: form.employee_code.trim(),
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          department: form.department.trim() ? form.department.trim() : null,
+          cccd: form.cccd.trim() || null,
+          phone: form.phone.trim() || null,
+          date_of_birth: form.date_of_birth.trim() || null,
+          gender: form.gender.trim() || null,
+          permanent_address: form.permanent_address.trim() || null,
+          current_address: form.current_address.trim() || null,
+          emergency_contact: form.emergency_contact.trim() || null,
         };
 
+        const updated = await updateEmployee(editingEmployee.id, data);
 
-        const updated =
-          await updateEmployee(
-            editingEmployee.id,
-            data
-          );
-
-
-        setEmployees(
-          (current) =>
-            current.map(
-              (employee) =>
-                employee.id ===
-                editingEmployee.id
-                  ? updated
-                  : employee
-            )
+        setEmployees((current) =>
+          current.map((employee) =>
+            employee.id === editingEmployee.id ? updated : employee
+          )
         );
-
       }
-
 
       /* ======================================================
          CREATE
@@ -520,23 +551,20 @@ export default function Employees() {
           setUsers((prev) => [...prev, createdUser]);
         }
 
+        const trimmedCode = form.employee_code.trim();
         const data: EmployeeCreate = {
-
-          employee_code:
-            form.employee_code.trim(),
-
-          full_name:
-            form.full_name.trim(),
-
-          email:
-            form.email.trim(),
-
-          department:
-            form.department.trim()
-              ? form.department.trim()
-              : null,
-
+          ...(trimmedCode ? { employee_code: trimmedCode } : {}),
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          department: form.department.trim() ? form.department.trim() : null,
           user_id: userId!,
+          cccd: form.cccd.trim() || null,
+          phone: form.phone.trim() || null,
+          date_of_birth: form.date_of_birth.trim() || null,
+          gender: form.gender.trim() || null,
+          permanent_address: form.permanent_address.trim() || null,
+          current_address: form.current_address.trim() || null,
+          emergency_contact: form.emergency_contact.trim() || null,
         };
 
 
@@ -2065,7 +2093,7 @@ export default function Employees() {
           <div
             className="
               w-full
-              max-w-lg
+              max-w-2xl
               overflow-hidden
               rounded-lg
               bg-white
@@ -2186,120 +2214,214 @@ export default function Employees() {
                 )}
 
 
-                {/* Employee Code */}
-
-                <FormField
-                  label="Mã nhân sự"
-                  required
-                >
-                  <input
-                    type="text"
-                    value={
-                      form.employee_code
-                    }
-                    onChange={(event) =>
-                      handleChange(
-                        "employee_code",
-                        event.target.value
-                      )
-                    }
-                    placeholder="EMP001"
-                    required
-                    disabled={saving}
-                    className={inputClassName}
-                  />
-                </FormField>
-
-
-                {/* Full Name */}
-
-                <FormField
-                  label="Họ và tên"
-                  required
-                >
-                  <input
-                    type="text"
-                    value={
-                      form.full_name
-                    }
-                    onChange={(event) =>
-                      handleChange(
-                        "full_name",
-                        event.target.value
-                      )
-                    }
-                    placeholder="Nguyễn Văn A"
-                    required
-                    disabled={saving}
-                    className={inputClassName}
-                  />
-                </FormField>
-
-
-                {/* Email */}
-
-                <FormField
-                  label="Email"
-                  required
-                >
-                  <input
-                    type="email"
-                    value={
-                      form.email
-                    }
-                    onChange={(event) =>
-                      handleChange(
-                        "email",
-                        event.target.value
-                      )
-                    }
-                    placeholder="nhanvien@gmail.com"
-                    required
-                    disabled={saving}
-                    className={inputClassName}
-                  />
-                </FormField>
-
-
-                {/* Department / Station */}
-
-                <FormField
-                  label="Vị trí / Quầy"
-                >
-                  <select
-                    value={form.department}
-                    onChange={(event) =>
-                      handleChange("department", event.target.value)
-                    }
-                    disabled={saving}
-                    className={inputClassName}
-                  >
-                    <option value="">-- Chọn vị trí / quầy --</option>
-                    <option value="Pha chế (Barista)">Pha chế (Barista)</option>
-                    <option value="Thu ngân (Cashier)">Thu ngân (Cashier)</option>
-                    <option value="Phục vụ (Server)">Phục vụ (Server)</option>
-                    <option value="Bếp (Kitchen)">Bếp (Kitchen)</option>
-                    <option value="Quản lý ca (Shift Manager)">Quản lý ca (Shift Manager)</option>
-                  </select>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[
-                      "Pha chế (Barista)",
-                      "Thu ngân (Cashier)",
-                      "Phục vụ (Server)",
-                      "Bếp (Kitchen)",
-                      "Quản lý ca (Shift Manager)",
-                    ].map((station) => (
-                      <button
-                        key={station}
-                        type="button"
-                        onClick={() => handleChange("department", station)}
-                        className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        + {station}
-                      </button>
-                    ))}
+                {/* Section 1: Work & Identity */}
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 pb-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Thông tin công việc
                   </div>
-                </FormField>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      label={editingEmployee ? "Mã nhân sự" : "Mã nhân sự (Tự động tạo)"}
+                      required={Boolean(editingEmployee)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={form.employee_code}
+                          onChange={(event) =>
+                            handleChange("employee_code", event.target.value)
+                          }
+                          placeholder="Tự động tạo khi lưu"
+                          required={Boolean(editingEmployee)}
+                          disabled={saving}
+                          className={inputClassName}
+                        />
+                        {!editingEmployee && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCodeManuallyEdited(false);
+                              setForm((prev) => ({
+                                ...prev,
+                                employee_code: generateNextEmployeeCode(
+                                  employees,
+                                  prev.department
+                                ),
+                              }));
+                            }}
+                            disabled={saving}
+                            className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                            title="Tạo lại mã tự động"
+                          >
+                            Tạo lại
+                          </button>
+                        )}
+                      </div>
+                    </FormField>
+
+                    <FormField label="Vị trí / Quầy">
+                      <select
+                        value={form.department}
+                        onChange={(event) =>
+                          handleChange("department", event.target.value)
+                        }
+                        disabled={saving}
+                        className={inputClassName}
+                      >
+                        <option value="">-- Chọn vị trí / quầy --</option>
+                        <option value="Pha chế (Barista)">Pha chế (Barista)</option>
+                        <option value="Thu ngân (Cashier)">Thu ngân (Cashier)</option>
+                        <option value="Phục vụ (Server)">Phục vụ (Server)</option>
+                        <option value="Bếp (Kitchen)">Bếp (Kitchen)</option>
+                        <option value="Quản lý ca (Shift Manager)">Quản lý ca (Shift Manager)</option>
+                      </select>
+                    </FormField>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Họ và tên" required>
+                      <input
+                        type="text"
+                        value={form.full_name}
+                        onChange={(event) =>
+                          handleChange("full_name", event.target.value)
+                        }
+                        placeholder="Nguyễn Văn A"
+                        required
+                        disabled={saving}
+                        className={inputClassName}
+                      />
+                    </FormField>
+
+                    <FormField label="Email" required>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(event) =>
+                          handleChange("email", event.target.value)
+                        }
+                        placeholder="nhanvien@gmail.com"
+                        required
+                        disabled={saving}
+                        className={inputClassName}
+                      />
+                    </FormField>
+                  </div>
+                </div>
+
+                {/* Section 2: Personal Details & CCCD */}
+                <div className="space-y-4 pt-2">
+                  <div className="border-b border-slate-100 pb-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Thông tin cá nhân & Căn cước công dân
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Số CCCD / CMND">
+                      <input
+                        type="text"
+                        value={form.cccd}
+                        onChange={(event) =>
+                          handleChange("cccd", event.target.value)
+                        }
+                        placeholder="079099001234"
+                        maxLength={20}
+                        disabled={saving}
+                        className={inputClassName}
+                      />
+                    </FormField>
+
+                    <FormField label="Số điện thoại">
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(event) =>
+                          handleChange("phone", event.target.value)
+                        }
+                        placeholder="0901234567"
+                        maxLength={20}
+                        disabled={saving}
+                        className={inputClassName}
+                      />
+                    </FormField>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Ngày sinh">
+                      <input
+                        type="date"
+                        value={form.date_of_birth}
+                        onChange={(event) =>
+                          handleChange("date_of_birth", event.target.value)
+                        }
+                        disabled={saving}
+                        className={inputClassName}
+                      />
+                    </FormField>
+
+                    <FormField label="Giới tính">
+                      <select
+                        value={form.gender}
+                        onChange={(event) =>
+                          handleChange("gender", event.target.value)
+                        }
+                        disabled={saving}
+                        className={inputClassName}
+                      >
+                        <option value="">-- Chọn giới tính --</option>
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                        <option value="Khác">Khác</option>
+                      </select>
+                    </FormField>
+                  </div>
+                </div>
+
+                {/* Section 3: Address & Emergency Contact */}
+                <div className="space-y-4 pt-2">
+                  <div className="border-b border-slate-100 pb-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Thông tin nơi ở & Liên hệ khẩn cấp
+                  </div>
+
+                  <FormField label="Nơi ở hiện tại (Tạm trú)">
+                    <input
+                      type="text"
+                      value={form.current_address}
+                      onChange={(event) =>
+                        handleChange("current_address", event.target.value)
+                      }
+                      placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP"
+                      disabled={saving}
+                      className={inputClassName}
+                    />
+                  </FormField>
+
+                  <FormField label="Địa chỉ thường trú / Quê quán (theo CCCD)">
+                    <input
+                      type="text"
+                      value={form.permanent_address}
+                      onChange={(event) =>
+                        handleChange("permanent_address", event.target.value)
+                      }
+                      placeholder="Địa chỉ thường trú ghi trên CCCD"
+                      disabled={saving}
+                      className={inputClassName}
+                    />
+                  </FormField>
+
+                  <FormField label="Liên hệ khẩn cấp (Họ tên & SĐT người thân)">
+                    <input
+                      type="text"
+                      value={form.emergency_contact}
+                      onChange={(event) =>
+                        handleChange("emergency_contact", event.target.value)
+                      }
+                      placeholder="VD: Nguyễn Văn B (Bố) - 0912345678"
+                      disabled={saving}
+                      className={inputClassName}
+                    />
+                  </FormField>
+                </div>
 
 
                 {/* User Account - CREATE ONLY */}

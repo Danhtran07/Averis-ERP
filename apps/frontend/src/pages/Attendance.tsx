@@ -577,7 +577,8 @@ export default function Attendance() {
 </xml>
 <![endif]-->
 <style>
-  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #1e293b; padding: 20px; }
+  body, table, th, td { font-family: 'Times New Roman', Times, serif; }
+  body { color: #1e293b; padding: 20px; }
   table { border-collapse: collapse; width: 100%; mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
   .title-banner { background-color: #0369a1; color: #ffffff; font-size: 15pt; font-weight: bold; text-align: center; vertical-align: middle; height: 50px; }
   .meta-banner { background-color: #f0f9ff; color: #0369a1; font-size: 10.5pt; font-weight: 600; text-align: center; vertical-align: middle; height: 32px; border-bottom: 2px solid #bae6fd; }
@@ -767,8 +768,10 @@ export default function Attendance() {
 </xml>
 <![endif]-->
 <style>
+  body, table, th, td {
+    font-family: 'Times New Roman', Times, serif;
+  }
   body {
-    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
     color: #1e293b;
     margin: 0;
     padding: 20px;
@@ -850,7 +853,7 @@ export default function Attendance() {
   .text-center { text-align: center; }
   .text-right { text-align: right; }
   .font-bold { font-weight: bold; }
-  .font-mono { font-family: 'Consolas', 'Courier New', monospace; font-size: 10pt; font-weight: 600; color: #1e293b; }
+  .font-mono { font-family: 'Times New Roman', Times, serif; font-size: 10pt; font-weight: 600; color: #1e293b; }
 
   /* Đánh dấu màu sắc các cột theo trạng thái */
   td.cell-present { background-color: #ecfdf5; color: #047857; font-weight: 600; text-align: center; }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   CalendarCheck,
@@ -94,6 +94,30 @@ function addWeeks(mondayStr: string, weeks: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+const DEPARTMENT_GROUP_ORDER = [
+  "Phục vụ",
+  "Bếp",
+  "Pha chế",
+  "Thu ngân",
+  "Lễ tân",
+  "Tiếp thực",
+  "Quản lý",
+];
+
+function getDepartmentGroup(dept?: string | null): string {
+  const raw = (dept || "").trim();
+  if (!raw) return "Khác";
+  const lower = raw.toLowerCase();
+  if (lower.includes("phục vụ") || lower.includes("server")) return "Phục vụ";
+  if (lower.includes("bếp") || lower.includes("kitchen")) return "Bếp";
+  if (lower.includes("pha chế") || lower.includes("barista")) return "Pha chế";
+  if (lower.includes("thu ngân") || lower.includes("cashier")) return "Thu ngân";
+  if (lower.includes("lễ tân") || lower.includes("reception")) return "Lễ tân";
+  if (lower.includes("tiếp thực") || lower.includes("runner")) return "Tiếp thực";
+  if (lower.includes("quản lý") || lower.includes("manager")) return "Quản lý";
+  return raw;
+}
+
 function getShiftDurationLabel(start: string, end: string): string {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -187,6 +211,7 @@ export default function Schedules() {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<number[]>([]);
   const [assignSearch, setAssignSearch] = useState("");
   const [assignDeptFilter, setAssignDeptFilter] = useState("");
+  const [rosterDeptTab, setRosterDeptTab] = useState("ALL");
   const [assignForm, setAssignForm] = useState({
     schedule_id: "",
     effective_from: new Date().toISOString().slice(0, 10),
@@ -437,6 +462,27 @@ export default function Schedules() {
       if (emp.department?.trim()) set.add(emp.department.trim());
     });
     return Array.from(set).sort();
+  }, [employees]);
+
+  const groupedRosterEmployees = useMemo(() => {
+    const groups = new Map<string, Employee[]>();
+    employees.forEach((emp) => {
+      const groupName = getDepartmentGroup(emp.department);
+      const list = groups.get(groupName) || [];
+      list.push(emp);
+      groups.set(groupName, list);
+    });
+
+    return Array.from(groups.entries())
+      .map(([group, list]) => ({ group, employees: list }))
+      .sort((a, b) => {
+        const idxA = DEPARTMENT_GROUP_ORDER.indexOf(a.group);
+        const idxB = DEPARTMENT_GROUP_ORDER.indexOf(b.group);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.group.localeCompare(b.group, "vi");
+      });
   }, [employees]);
 
   const assignFilteredEmployees = useMemo(() => {
@@ -1587,7 +1633,7 @@ export default function Schedules() {
               <div className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
                 Nhân sự đã phân lịch
               </div>
-              <div className="mt-2 text-2xl font-bold text-emerald-700">
+              <div className="mt-2 text-2xl font-bold text-sky-700">
                 {assignmentByEmployeeId.size} / {employees.length}
               </div>
             </div>
@@ -1595,218 +1641,300 @@ export default function Schedules() {
               <div className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
                 Chưa có lịch tuần
               </div>
-              <div className="mt-2 text-2xl font-bold text-amber-600">
+              <div className="mt-2 text-2xl font-bold text-slate-600">
                 {Math.max(0, employees.length - assignmentByEmployeeId.size)}
               </div>
             </div>
           </div>
 
-          {/* SCHEDULE CARDS */}
-          {schedules.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center text-sm text-slate-500">
-              Chưa có lịch làm việc tuần nào. Nhấn "Tạo lịch tuần mới" để bắt đầu.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {schedules.map((schedule) => {
-                const rules = new Map(schedule.rules.map((rule) => [rule.day_of_week, rule]));
-                const assignedEmps = employeesByScheduleId.get(schedule.id) || [];
-
-                return (
-                  <article
-                    key={schedule.id}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs"
+          {/* 2-COLUMN WORKSPACE: LEFT = ROSTER BY DEPARTMENT, RIGHT = COMPACT SCHEDULE TEMPLATES */}
+          <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
+            {/* LEFT: EMPLOYEE ROSTER OVERVIEW */}
+            <div className="order-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs xl:order-1">
+              <div className="flex flex-col gap-3 border-b border-slate-100 px-5 pt-4 pb-0">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Danh sách phân công nhân sự ({employees.length})
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (rosterDeptTab === "ALL") {
+                        openAssignModal();
+                      } else {
+                        const groupEmps =
+                          groupedRosterEmployees.find((g) => g.group === rosterDeptTab)
+                            ?.employees || [];
+                        openAssignModal(
+                          undefined,
+                          groupEmps.map((e) => e.id)
+                        );
+                      }
+                    }}
+                    disabled={schedules.length === 0 || employees.length === 0}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-800 disabled:opacity-40"
                   >
-                    {/* Card Header */}
-                    <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-base font-bold text-slate-900">{schedule.name}</h2>
-                          <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-600">
-                            {schedule.code}
-                          </span>
+                    <UsersRound size={14} />
+                    <span>
+                      {rosterDeptTab === "ALL"
+                        ? "Gán lịch hàng loạt"
+                        : `Gán lịch nhóm ${rosterDeptTab}`}
+                    </span>
+                  </button>
+                </div>
+
+                {groupedRosterEmployees.length > 0 && (
+                  <div className="-mb-px flex flex-wrap items-center gap-5">
+                    <button
+                      type="button"
+                      onClick={() => setRosterDeptTab("ALL")}
+                      className={`border-b-2 pb-2.5 text-xs font-semibold transition ${
+                        rosterDeptTab === "ALL"
+                          ? "border-sky-600 text-sky-700"
+                          : "border-transparent text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      Tất cả <span className="ml-0.5 text-slate-400">({employees.length})</span>
+                    </button>
+                    {groupedRosterEmployees.map(({ group, employees: groupEmps }) => {
+                      const active = rosterDeptTab === group;
+                      return (
+                        <button
+                          key={group}
+                          type="button"
+                          onClick={() => setRosterDeptTab(group)}
+                          className={`border-b-2 pb-2.5 text-xs font-semibold transition ${
+                            active
+                              ? "border-sky-600 text-sky-700"
+                              : "border-transparent text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          {group}{" "}
                           <span
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                              schedule.is_active
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-slate-100 text-slate-500"
-                            }`}
+                            className={`ml-0.5 ${active ? "text-sky-500" : "text-slate-400"}`}
                           >
-                            {schedule.is_active ? "Đang áp dụng" : "Ngưng"}
+                            ({groupEmps.length})
                           </span>
-                        </div>
-                        {schedule.description && (
-                          <p className="mt-1 text-xs text-slate-500">{schedule.description}</p>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => openAssignModal(schedule.id)}
-                          disabled={!schedule.is_active || employees.length === 0}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-sky-50 border border-sky-200 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 disabled:opacity-40"
-                        >
-                          <UserCheck size={14} />
-                          <span>Gán nhân viên</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => openEditScheduleModal(schedule)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <Pencil size={13} />
-                          <span>Sửa</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteSchedule(schedule)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50/60 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                        >
-                          <Trash2 size={13} />
-                          <span>Xóa</span>
-                        </button>
-                      </div>
-                    </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-left text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-100/80 text-xs font-bold text-slate-700">
+                    <tr>
+                      <th className="px-4 py-3">Nhân sự</th>
+                      <th className="px-4 py-3">Vị trí / Quầy</th>
+                      <th className="px-4 py-3">Lịch tuần</th>
+                      <th className="px-4 py-3">Hiệu lực</th>
+                      <th className="px-4 py-3 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {groupedRosterEmployees
+                      .filter((g) => rosterDeptTab === "ALL" || g.group === rosterDeptTab)
+                      .map(({ group, employees: groupEmps }) => (
+                        <Fragment key={group}>
+                          {rosterDeptTab === "ALL" && (
+                            <tr className="bg-sky-800">
+                              <td
+                                colSpan={5}
+                                className="px-4 py-2 text-xs font-bold text-white"
+                              >
+                                {group}{" "}
+                                <span className="font-medium text-sky-200">
+                                  ({groupEmps.length})
+                                </span>
+                              </td>
+                            </tr>
+                          )}
+                          {groupEmps.map((emp) => {
+                            const assign = assignmentByEmployeeId.get(emp.id);
+                            const sched =
+                              assign?.schedule ||
+                              schedules.find((s) => s.id === assign?.schedule_id);
+                            return (
+                              <tr key={emp.id} className="hover:bg-slate-50/80">
+                                <td className="px-4 py-3">
+                                  <div className="font-semibold text-slate-900">
+                                    {emp.full_name}
+                                  </div>
+                                  <div className="font-mono text-[11px] text-slate-400">
+                                    {emp.employee_code}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-600">
+                                  {emp.department || "—"}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {sched ? (
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
+                                      {sched.name}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex rounded-lg border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-400">
+                                      Chưa phân lịch
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-500">
+                                  {assign ? assign.effective_from : "—"}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openAssignModal(assign?.schedule_id, [emp.id])
+                                    }
+                                    disabled={schedules.length === 0}
+                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                                  >
+                                    {sched ? "Đổi lịch" : "Gán lịch"}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-                    {/* 7-Day Horizontal Grid */}
-                    <div className="grid grid-cols-2 gap-2.5 bg-slate-50/40 p-4 sm:grid-cols-4 lg:grid-cols-7">
-                      {days.map((day, index) => {
-                        const shift = rules.get(index + 1)?.shift;
-                        const isMorning = shift?.code.includes("MORNING") || shift?.code.includes("SANG");
-                        const isEvening = shift?.code.includes("EVENING") || shift?.code.includes("CHIEU");
-                        const boxClass = shift
-                          ? isMorning
-                            ? "border-amber-200 bg-amber-50/70 text-amber-900"
-                            : isEvening
-                              ? "border-indigo-200 bg-indigo-50/70 text-indigo-900"
-                              : "border-emerald-200 bg-emerald-50/70 text-emerald-900"
-                          : "border-slate-200 bg-white text-slate-400";
+            {/* RIGHT: COMPACT SCHEDULE TEMPLATES */}
+            <div className="order-1 space-y-3 xl:order-2">
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-sm font-bold text-slate-900">
+                  Mẫu lịch tuần ({schedules.length})
+                </h2>
+                <span className="text-xs text-slate-400">
+                  Rê chuột vào ngày để xem giờ ca
+                </span>
+              </div>
 
-                        return (
-                          <div
-                            key={day}
-                            className={`rounded-xl border p-3 transition ${boxClass}`}
-                          >
-                            <div className="text-[11px] font-bold uppercase tracking-wider opacity-70">
-                              {day}
+              {schedules.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm text-slate-500">
+                  Chưa có mẫu lịch tuần nào. Nhấn &quot;Tạo lịch tuần mới&quot; để bắt đầu.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {schedules.map((schedule) => {
+                    const rules = new Map(
+                      schedule.rules.map((rule) => [rule.day_of_week, rule])
+                    );
+                    const assignedEmps = employeesByScheduleId.get(schedule.id) || [];
+                    const shortDays = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+
+                    return (
+                      <article
+                        key={schedule.id}
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs transition hover:border-slate-300"
+                      >
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h3 className="text-sm font-bold text-slate-900">
+                                {schedule.name}
+                              </h3>
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
+                                {schedule.code}
+                              </span>
+                              {!schedule.is_active && (
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                                  Ngưng
+                                </span>
+                              )}
                             </div>
-                            {shift ? (
-                              <div className="mt-1.5">
-                                <div className="truncate text-xs font-bold">{shift.name}</div>
-                                <div className="mt-0.5 text-[11px] font-medium opacity-80">
-                                  {formatTime(shift.start_time)} – {formatTime(shift.end_time)}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="mt-2 text-xs font-medium">Nghỉ ca</div>
+                            {schedule.description && (
+                              <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+                                {schedule.description}
+                              </p>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
 
-                    {/* Assigned Employees Footer */}
-                    <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3 bg-white">
-                      <span className="text-xs font-semibold text-slate-500">
-                        Nhân sự đang áp dụng ({assignedEmps.length}):
-                      </span>
-                      {assignedEmps.length === 0 ? (
-                        <span className="text-xs text-slate-400">Chưa gán nhân viên</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {assignedEmps.map((emp) => (
-                            <span
-                              key={emp.id}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openAssignModal(schedule.id)}
+                              disabled={!schedule.is_active || employees.length === 0}
+                              title="Gán nhân viên vào lịch này"
+                              className="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-40"
                             >
-                              {emp.full_name}
-                              <span className="font-mono text-[10px] text-slate-400">
-                                ({emp.employee_code})
-                              </span>
-                            </span>
-                          ))}
+                              Gán
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditScheduleModal(schedule)}
+                              title="Sửa lịch"
+                              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteSchedule(schedule)}
+                              title="Xóa lịch"
+                              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
 
-          {/* EMPLOYEE ROSTER OVERVIEW */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
-            <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-sm font-bold text-slate-900">
-                Danh sách phân công nhân sự ({employees.length})
-              </h2>
-              <button
-                type="button"
-                onClick={() => openAssignModal()}
-                disabled={schedules.length === 0 || employees.length === 0}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-800 disabled:opacity-40"
-              >
-                <UsersRound size={14} />
-                <span>Chọn nhiều nhân viên để gán lịch</span>
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold text-slate-400">
-                  <tr>
-                    <th className="px-5 py-3">Mã NV</th>
-                    <th className="px-5 py-3">Họ và tên</th>
-                    <th className="px-5 py-3">Vị trí / Quầy</th>
-                    <th className="px-5 py-3">Lịch tuần đang áp dụng</th>
-                    <th className="px-5 py-3">Hiệu lực từ</th>
-                    <th className="px-5 py-3 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {employees.map((emp) => {
-                    const assign = assignmentByEmployeeId.get(emp.id);
-                    const sched = assign?.schedule || schedules.find((s) => s.id === assign?.schedule_id);
-                    return (
-                      <tr key={emp.id} className="hover:bg-slate-50/80">
-                        <td className="px-5 py-3 font-mono text-xs font-semibold text-slate-500">
-                          {emp.employee_code}
-                        </td>
-                        <td className="px-5 py-3 font-semibold text-slate-900">
-                          {emp.full_name}
-                        </td>
-                        <td className="px-5 py-3 text-xs text-slate-600">
-                          {emp.department || "—"}
-                        </td>
-                        <td className="px-5 py-3">
-                          {sched ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
-                              {sched.name}
-                            </span>
-                          ) : (
-                            <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                              Chưa phân lịch
+                        {/* Compact 7-Day Strip */}
+                        <div className="mt-3 grid grid-cols-7 gap-1">
+                          {days.map((day, index) => {
+                            const shift = rules.get(index + 1)?.shift;
+                            const boxClass = shift
+                              ? "border-sky-200 bg-sky-50/70 text-sky-900"
+                              : "border-slate-200 bg-white text-slate-400";
+
+                            return (
+                              <div
+                                key={day}
+                                title={
+                                  shift
+                                    ? `${day}: ${shift.name} (${formatTime(
+                                        shift.start_time
+                                      )} – ${formatTime(shift.end_time)})`
+                                    : `${day}: Nghỉ ca`
+                                }
+                                className={`rounded-lg border px-1 py-1.5 text-center ${boxClass}`}
+                              >
+                                <div className="text-[10px] font-bold">
+                                  {shortDays[index]}
+                                </div>
+                                <div className="mt-0.5 truncate text-[10px] font-medium">
+                                  {shift ? formatTime(shift.start_time) : "Off"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Assigned count footer */}
+                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            Đang áp dụng:{" "}
+                            <strong className="text-slate-700">
+                              {assignedEmps.length} nhân sự
+                            </strong>
+                          </span>
+                          {assignedEmps.length > 0 && (
+                            <span className="max-w-[65%] truncate text-slate-400">
+                              {assignedEmps.map((e) => e.full_name).join(", ")}
                             </span>
                           )}
-                        </td>
-                        <td className="px-5 py-3 text-xs text-slate-500">
-                          {assign ? assign.effective_from : "—"}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => openAssignModal(assign?.schedule_id, [emp.id])}
-                            disabled={schedules.length === 0}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-                          >
-                            {sched ? "Đổi lịch" : "Gán lịch"}
-                          </button>
-                        </td>
-                      </tr>
+                        </div>
+                      </article>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           </div>
 

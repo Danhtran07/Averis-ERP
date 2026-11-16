@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_serializer
 
@@ -15,9 +15,17 @@ class EmployeeBase(BaseModel):
     base_salary: float = 0.0
     hourly_rate: float = 30000.0
     allowance: float = 0.0
+    cccd: str | None = None
+    phone: str | None = None
+    date_of_birth: date | None = None
+    gender: str | None = None
+    permanent_address: str | None = None
+    current_address: str | None = None
+    emergency_contact: str | None = None
 
 
 class EmployeeCreate(EmployeeBase):
+    employee_code: str | None = None
     user_id: int
 
 
@@ -30,6 +38,13 @@ class EmployeeUpdate(BaseModel):
     base_salary: float | None = None
     hourly_rate: float | None = None
     allowance: float | None = None
+    cccd: str | None = None
+    phone: str | None = None
+    date_of_birth: date | None = None
+    gender: str | None = None
+    permanent_address: str | None = None
+    current_address: str | None = None
+    emergency_contact: str | None = None
 
 
 class EmployeeResponse(EmployeeBase):

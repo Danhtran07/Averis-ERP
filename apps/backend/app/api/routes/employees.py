@@ -88,6 +88,36 @@ def _get_store_id(db: Session, current_user: User) -> int:
     return store.id
 
 
+def _department_prefix(department: str | None) -> str:
+    if not department:
+        return "EMP"
+    lowered = department.lower()
+    if "pha chế" in lowered or "barista" in lowered:
+        return "BAR"
+    if "thu ngân" in lowered or "cashier" in lowered:
+        return "CSH"
+    if "phục vụ" in lowered or "server" in lowered:
+        return "SRV"
+    if "bếp" in lowered or "kitchen" in lowered:
+        return "KIT"
+    if "quản lý" in lowered or "manager" in lowered:
+        return "MGR"
+    return "EMP"
+
+
+def _generate_employee_code(db: Session, department: str | None) -> str:
+    prefix = _department_prefix(department)
+    existing_codes = {
+        row[0] for row in db.query(Employee.employee_code).all() if row[0]
+    }
+    seq = len(existing_codes) + 1
+    while True:
+        candidate = f"{prefix}-{seq:04d}"
+        if candidate not in existing_codes:
+            return candidate
+        seq += 1
+
+
 @router.get(
     "",
     response_model=list[EmployeeResponse],
@@ -214,6 +244,10 @@ def create_employee(
 
     user.store_id = store_id
 
+    resolved_code = (payload.employee_code or "").strip()
+    if not resolved_code:
+        resolved_code = _generate_employee_code(db, payload.department)
+
     existing_by_user = (
         db.query(Employee)
         .filter(Employee.user_id == payload.user_id)
@@ -225,7 +259,7 @@ def create_employee(
             db.query(Employee)
             .filter(
                 Employee.id != existing_by_user.id,
-                (Employee.employee_code == payload.employee_code)
+                (Employee.employee_code == resolved_code)
                 | (Employee.email == payload.email),
             )
             .first()
@@ -235,7 +269,7 @@ def create_employee(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Employee code or email already exists",
             )
-        existing_by_user.employee_code = payload.employee_code
+        existing_by_user.employee_code = resolved_code
         existing_by_user.full_name = payload.full_name
         existing_by_user.email = payload.email
         existing_by_user.department = payload.department
@@ -243,6 +277,13 @@ def create_employee(
         existing_by_user.base_salary = payload.base_salary
         existing_by_user.hourly_rate = payload.hourly_rate
         existing_by_user.allowance = payload.allowance
+        existing_by_user.cccd = payload.cccd
+        existing_by_user.phone = payload.phone
+        existing_by_user.date_of_birth = payload.date_of_birth
+        existing_by_user.gender = payload.gender
+        existing_by_user.permanent_address = payload.permanent_address
+        existing_by_user.current_address = payload.current_address
+        existing_by_user.emergency_contact = payload.emergency_contact
         existing_by_user.store_id = store_id
         db.commit()
         db.refresh(existing_by_user)
@@ -252,7 +293,7 @@ def create_employee(
         db.query(Employee)
         .filter(
             (Employee.user_id == payload.user_id)
-            | (Employee.employee_code == payload.employee_code)
+            | (Employee.employee_code == resolved_code)
             | (Employee.email == payload.email)
         )
         .first()
@@ -266,7 +307,7 @@ def create_employee(
 
     employee = Employee(
         user_id=payload.user_id,
-        employee_code=payload.employee_code,
+        employee_code=resolved_code,
         full_name=payload.full_name,
         email=payload.email,
         department=payload.department,
@@ -274,6 +315,13 @@ def create_employee(
         base_salary=payload.base_salary,
         hourly_rate=payload.hourly_rate,
         allowance=payload.allowance,
+        cccd=payload.cccd,
+        phone=payload.phone,
+        date_of_birth=payload.date_of_birth,
+        gender=payload.gender,
+        permanent_address=payload.permanent_address,
+        current_address=payload.current_address,
+        emergency_contact=payload.emergency_contact,
         store_id=store_id,
     )
 

@@ -12,12 +12,19 @@ export interface Employee {
   base_salary?: number;
   hourly_rate?: number;
   allowance?: number;
+  cccd?: string | null;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  permanent_address?: string | null;
+  current_address?: string | null;
+  emergency_contact?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface EmployeeCreate {
-  employee_code: string;
+  employee_code?: string;
   full_name: string;
   email: string;
   department: string | null;
@@ -26,6 +33,13 @@ export interface EmployeeCreate {
   base_salary?: number;
   hourly_rate?: number;
   allowance?: number;
+  cccd?: string | null;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  permanent_address?: string | null;
+  current_address?: string | null;
+  emergency_contact?: string | null;
 }
 
 export interface EmployeeUpdate {
@@ -38,4 +52,11 @@ export interface EmployeeUpdate {
   base_salary?: number;
   hourly_rate?: number;
   allowance?: number;
+  cccd?: string | null;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  permanent_address?: string | null;
+  current_address?: string | null;
+  emergency_contact?: string | null;
 }

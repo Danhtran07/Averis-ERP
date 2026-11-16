@@ -3,17 +3,14 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   CalendarClock,
-  CheckCircle2,
   Clock3,
   FileText,
   ScanFace,
-  ShieldCheck,
   UsersRound,
 } from "lucide-react";
 
 import { getEmployees } from "../api/employee.api";
 import {
-  getAIBiometricsMetrics,
   getAttendanceRequests,
   getAttendances,
 } from "../api/attendance.api";
@@ -22,7 +19,6 @@ import { getApiErrorMessage } from "../api/error";
 
 import type { Employee } from "../types/employee";
 import type {
-  AIBiometricsMetricsResponse,
   Attendance,
   AttendanceRequestItem,
 } from "../types/attendance";
@@ -77,9 +73,6 @@ export default function Dashboard() {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
-  const [aiMetrics, setAiMetrics] = useState<AIBiometricsMetricsResponse | null>(
-    null
-  );
   const [requests, setRequests] = useState<AttendanceRequestItem[]>([]);
   const [mySchedule, setMySchedule] = useState<EmployeeSchedule | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,16 +94,13 @@ export default function Dashboard() {
       setError("");
 
       if (isAdmin) {
-        const [employeeData, attendanceData, aiData, reqData] =
-          await Promise.all([
-            getEmployees(),
-            getAttendances(),
-            getAIBiometricsMetrics().catch(() => null),
-            getAttendanceRequests().catch(() => []),
-          ]);
+        const [employeeData, attendanceData, reqData] = await Promise.all([
+          getEmployees(),
+          getAttendances(),
+          getAttendanceRequests().catch(() => []),
+        ]);
         setEmployees(employeeData);
         setAttendances(attendanceData);
-        setAiMetrics(aiData);
         setRequests(reqData);
       } else {
         const [attendanceData, scheduleData, reqData] = await Promise.all([
@@ -167,34 +157,79 @@ export default function Dashboard() {
 
   const departmentStats = useMemo(() => {
     if (!isAdmin || employees.length === 0) return [];
+
+    const DEPT_ORDER = ["Quản lý", "Bếp", "Pha chế", "Thu ngân", "Phục vụ"];
+
+    function getDeptGroup(rawDept?: string | null): string {
+      const raw = (rawDept || "").trim();
+      if (!raw) return "Khác";
+      const lower = raw.toLowerCase();
+      if (lower.includes("phục vụ") || lower.includes("server")) return "Phục vụ";
+      if (lower.includes("bếp") || lower.includes("kitchen")) return "Bếp";
+      if (lower.includes("pha chế") || lower.includes("barista")) return "Pha chế";
+      if (lower.includes("thu ngân") || lower.includes("cashier")) return "Thu ngân";
+      if (lower.includes("quản lý") || lower.includes("manager")) return "Quản lý";
+      return raw;
+    }
+
     const groups = new Map<
       string,
-      { department: string; total: number; checkedIn: number; late: number }
+      {
+        department: string;
+        total: number;
+        checkedIn: number;
+        late: number;
+        members: {
+          id: number;
+          name: string;
+          code: string;
+          isCheckedIn: boolean;
+          isLate: boolean;
+        }[];
+      }
     >();
 
     const todayByEmp = new Map<number, Attendance>();
     todayAttendances.forEach((a) => todayByEmp.set(a.employee_id, a));
 
     employees.forEach((emp) => {
-      const dept = emp.department?.trim() || "Chưa phân quầy";
-      const current = groups.get(dept) || {
-        department: dept,
+      const groupName = getDeptGroup(emp.department);
+      const current = groups.get(groupName) || {
+        department: groupName,
         total: 0,
         checkedIn: 0,
         late: 0,
+        members: [],
       };
       current.total += 1;
       const att = todayByEmp.get(emp.id);
-      if (att && (att.status === "PRESENT" || att.status === "LATE")) {
-        current.checkedIn += 1;
-      }
-      if (att && att.status === "LATE") {
-        current.late += 1;
-      }
-      groups.set(dept, current);
+      const isCheckedIn = Boolean(
+        att && (att.status === "PRESENT" || att.status === "LATE")
+      );
+      const isLate = Boolean(att && att.status === "LATE");
+
+      if (isCheckedIn) current.checkedIn += 1;
+      if (isLate) current.late += 1;
+
+      current.members.push({
+        id: emp.id,
+        name: emp.full_name,
+        code: emp.employee_code,
+        isCheckedIn,
+        isLate,
+      });
+
+      groups.set(groupName, current);
     });
 
-    return Array.from(groups.values()).sort((a, b) => b.total - a.total);
+    return Array.from(groups.values()).sort((a, b) => {
+      const idxA = DEPT_ORDER.indexOf(a.department);
+      const idxB = DEPT_ORDER.indexOf(b.department);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.department.localeCompare(b.department, "vi");
+    });
   }, [employees, todayAttendances, isAdmin]);
 
   const totalMonthWorkingMinutes = useMemo(
@@ -308,14 +343,24 @@ export default function Dashboard() {
   }, [todayAttendances, attendances, isAdmin]);
 
   const weeklyAttendance = useMemo(() => {
-    const result: { day: string; date: string; percent: number }[] = [];
+    const result: {
+      day: string;
+      shortDay: string;
+      date: string;
+      percent: number;
+      checkedIn: number;
+      total: number;
+      isFuture: boolean;
+    }[] = [];
     const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(now);
     monday.setDate(now.getDate() + mondayOffset);
 
     const denominator = isAdmin ? Math.max(1, totalEmployees) : 1;
+    const shortNames = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
     for (let i = 0; i < 7; i++) {
       const date = new Date(monday);
@@ -327,15 +372,22 @@ export default function Dashboard() {
       const validCount = dayAttendances.filter(
         (item) => item.status === "PRESENT" || item.status === "LATE"
       ).length;
+      const isFuture = dateString > todayStr;
       const percent =
         isAdmin && totalEmployees === 0
+          ? 0
+          : isFuture
           ? 0
           : Math.min(100, Math.round((validCount / denominator) * 100));
 
       result.push({
         day: date.toLocaleDateString("vi-VN", { weekday: "long" }),
+        shortDay: shortNames[i],
         date: dateString,
         percent,
+        checkedIn: validCount,
+        total: denominator,
+        isFuture,
       });
     }
     return result;
@@ -351,38 +403,6 @@ export default function Dashboard() {
 
   const statistics = isAdmin ? adminStatistics : employeeStatistics;
 
-  const biometricStats: Statistic[] = aiMetrics
-    ? [
-        {
-          label: "Độ khớp khuôn mặt TB",
-          value:
-            aiMetrics.avg_face_similarity > 0
-              ? `${(aiMetrics.avg_face_similarity * 100).toFixed(1)}%`
-              : "—",
-          sub: "ArcFace 512-D Cosine",
-          icon: <ScanFace size={18} />,
-          tone: "indigo",
-        },
-        {
-          label: "Điểm xác thực Liveness TB",
-          value:
-            aiMetrics.avg_liveness_score > 0
-              ? `${(aiMetrics.avg_liveness_score * 100).toFixed(1)}%`
-              : "—",
-          sub: "Anti-Spoofing đa tầng",
-          icon: <ShieldCheck size={18} />,
-          tone: "emerald",
-        },
-        {
-          label: "Nhân sự đã đăng ký mặt",
-          value: `${aiMetrics.enrolled_employees} / ${totalEmployees}`,
-          sub: `${aiMetrics.total_face_embeddings} mẫu sinh trắc học`,
-          icon: <CheckCircle2 size={18} />,
-          tone: "slate",
-        },
-      ]
-    : [];
-
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-6">
       {/* HEADER */}
@@ -392,15 +412,15 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
               Tổng quan vận hành
             </h1>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
               7 ngày / tuần
             </span>
           </div>
           <p className="mt-1 text-xs font-medium text-slate-500 capitalize">
             {displayDate}
             {!isAdmin && mySchedule?.shift && (
-              <span className="font-semibold text-indigo-700 normal-case">
+              <span className="font-semibold text-sky-700 normal-case">
                 {" · "}
                 {mySchedule.shift.name} ({mySchedule.shift.start_time.slice(0, 5)}
                 –{mySchedule.shift.end_time.slice(0, 5)})
@@ -433,93 +453,151 @@ export default function Dashboard() {
         ))}
       </section>
 
-      {/* AI BIOMETRIC METRICS STRIP */}
-      {isAdmin && biometricStats.length > 0 && (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {biometricStats.map((stat) => (
-            <StatCard key={stat.label} stat={stat} />
-          ))}
-        </section>
-      )}
-
       {/* MAIN CONTENT GRID */}
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_1fr]">
         <div className="space-y-6">
-          {/* 7-DAY ATTENDANCE CHART */}
+          {/* 7-DAY ATTENDANCE WEEKLY STRIP */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900">
-                Tỷ lệ vào ca 7 ngày trong tuần (T2 – CN)
-              </h2>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  Tỷ lệ vào ca 7 ngày trong tuần
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Hôm nay: <strong className="text-sky-700">{todayAttendances.length}/{totalEmployees} nhân sự vào ca</strong>
+                </p>
+              </div>
               <Link
                 to="/schedules"
-                className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
+                className="text-xs font-semibold text-sky-600 no-underline hover:text-sky-800"
               >
                 Lịch phân ca →
               </Link>
             </div>
-            <div className="mt-5 space-y-3.5">
-              {weeklyAttendance.map((item) => (
-                <AttendanceRow
-                  key={item.date}
-                  day={item.day}
-                  isToday={item.date === today}
-                  percent={item.percent}
-                />
-              ))}
+
+            <div className="mt-4 grid grid-cols-7 divide-x divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50">
+              {weeklyAttendance.map((item) => {
+                const isToday = item.date === today;
+                return (
+                  <div
+                    key={item.date}
+                    className={`px-2 py-3 text-center sm:px-3 ${
+                      isToday ? "bg-white font-semibold shadow-2xs" : ""
+                    }`}
+                  >
+                    <div className="text-[11px] text-slate-500">
+                      {item.shortDay}
+                      {isToday && (
+                        <span className="ml-1 font-bold text-sky-700">(Nay)</span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-slate-400">
+                      {item.date.slice(8, 10)}/{item.date.slice(5, 7)}
+                    </div>
+                    <div
+                      className={`mt-2 text-base font-bold ${
+                        isToday
+                          ? "text-sky-700"
+                          : item.isFuture
+                          ? "text-slate-300"
+                          : "text-slate-800"
+                      }`}
+                    >
+                      {item.isFuture ? "—" : `${item.percent}%`}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {item.isFuture
+                        ? "Chưa tới"
+                        : `${item.checkedIn}/${item.total}`}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* STATION BREAKDOWN */}
+          {/* STATION BREAKDOWN TABLE */}
           {isAdmin && departmentStats.length > 0 && (
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-sm font-bold text-slate-900">
                   Nhân sự theo Vị trí / Quầy hôm nay
                 </h2>
                 <Link
                   to="/timesheet"
-                  className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
+                  className="text-xs font-semibold text-sky-600 no-underline hover:text-sky-800"
                 >
                   Bảng lương giờ →
                 </Link>
               </div>
 
-              <div className="mt-5 grid gap-3.5 sm:grid-cols-2">
-                {departmentStats.map((dept) => {
-                  const pct =
-                    dept.total > 0
-                      ? Math.round((dept.checkedIn / dept.total) * 100)
-                      : 0;
-                  return (
-                    <div
-                      key={dept.department}
-                      className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"
-                    >
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-800">
-                          {dept.department}
-                        </span>
-                        <span className="font-semibold text-slate-600">
-                          {dept.checkedIn}/{dept.total} ca
-                          {dept.late > 0 ? (
-                            <span className="ml-1 text-amber-600">
-                              · {dept.late} trễ
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full border-collapse border border-slate-200 text-left text-xs">
+                  <thead>
+                    <tr className="bg-sky-800 text-white font-semibold text-xs">
+                      <th className="border border-sky-700/80 py-2.5 px-3.5">Vị trí / Quầy</th>
+                      <th className="border border-sky-700/80 px-3 py-2.5 text-center">Tổng nhân sự</th>
+                      <th className="border border-sky-700/80 px-3.5 py-2.5">Nhân sự ca trực hôm nay</th>
+                      <th className="border border-sky-700/80 py-2.5 px-3.5 text-right">Tình trạng</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white">
+                    {departmentStats.map((dept) => {
+                      const isFull =
+                        dept.checkedIn === dept.total && dept.total > 0;
+                      return (
+                        <tr
+                          key={dept.department}
+                          className="hover:bg-slate-50/80 transition"
+                        >
+                          <td className="border border-slate-200 py-3 px-3.5 font-semibold text-slate-800">
+                            {dept.department}
+                          </td>
+                          <td className="border border-slate-200 px-3 py-3 text-center">
+                            <span className="font-semibold text-slate-900">
+                              {dept.checkedIn}
                             </span>
-                          ) : (
-                            ""
-                          )}
-                        </span>
-                      </div>
-                      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-slate-200/80">
-                        <div
-                          className="h-full rounded-full bg-indigo-600 transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                            <span className="text-slate-400">/{dept.total}</span>
+                          </td>
+                          <td className="border border-slate-200 px-3.5 py-3">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {dept.members.map((m) => (
+                                <span
+                                  key={m.id}
+                                  className={
+                                    m.isLate
+                                      ? "font-medium text-amber-700"
+                                      : m.isCheckedIn
+                                      ? "text-slate-700"
+                                      : "text-slate-400"
+                                  }
+                                >
+                                  {m.name}
+                                  {m.isLate && " (trễ)"}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="border border-slate-200 py-3 px-3.5 text-right">
+                            {dept.late > 0 ? (
+                              <span className="font-medium text-amber-700">
+                                {dept.late} trễ ca
+                              </span>
+                            ) : isFull ? (
+                              <span className="font-medium text-sky-700">
+                                Đủ ca
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">
+                                Vắng {dept.total - dept.checkedIn}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -533,7 +611,7 @@ export default function Dashboard() {
             </h2>
             <Link
               to="/attendance"
-              className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
+              className="text-xs font-semibold text-sky-600 no-underline hover:text-sky-800"
             >
               Xem tất cả →
             </Link>
@@ -578,9 +656,9 @@ export default function Dashboard() {
 
 function StatCard({ stat }: { stat: Statistic }) {
   const toneStyles: Record<Statistic["tone"], string> = {
-    indigo: "bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100",
-    emerald: "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100",
-    amber: "bg-amber-50 text-amber-600 ring-1 ring-amber-100",
+    indigo: "bg-sky-50 text-sky-700 ring-1 ring-sky-200/80",
+    emerald: "bg-sky-50 text-sky-700 ring-1 ring-sky-200/80",
+    amber: "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80",
     slate: "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80",
   };
 
@@ -597,44 +675,6 @@ function StatCard({ stat }: { stat: Statistic }) {
       >
         {stat.icon}
       </div>
-    </div>
-  );
-}
-
-function AttendanceRow({
-  day,
-  isToday,
-  percent,
-}: {
-  day: string;
-  isToday?: boolean;
-  percent: number;
-}) {
-  return (
-    <div className="grid grid-cols-[105px_1fr_44px] items-center gap-3">
-      <span
-        className={`text-xs capitalize ${
-          isToday ? "font-bold text-indigo-700" : "font-medium text-slate-600"
-        }`}
-      >
-        {day}
-        {isToday ? " (Nay)" : ""}
-      </span>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full transition-all ${
-            percent >= 80
-              ? "bg-emerald-500"
-              : percent > 0
-                ? "bg-indigo-600"
-                : "bg-slate-300"
-          }`}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <span className="text-right text-xs font-semibold text-slate-700">
-        {percent}%
-      </span>
     </div>
   );
 }
@@ -691,7 +731,7 @@ function Activity({
   } else {
     statusInfo = {
       label: "Đúng giờ",
-      badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+      badge: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
     };
   }
 

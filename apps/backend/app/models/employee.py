@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Date, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -78,6 +78,41 @@ class Employee(Base):
         default=0.0,
         server_default="0",
         nullable=False,
+    )
+
+    cccd: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    phone: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    date_of_birth: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+    )
+
+    gender: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    permanent_address: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    current_address: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    emergency_contact: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
