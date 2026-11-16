@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   createAttendance,
@@ -151,7 +151,9 @@ function statusClass(
 }
 
 export default function Attendance() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const storedUser = localStorage.getItem("user");
   const isAdmin = (() => {
     try {
@@ -161,10 +163,16 @@ export default function Attendance() {
     }
   })();
 
-  const activeTab = (searchParams.get("tab") || "calendar") as
-    | "calendar"
-    | "timesheet"
-    | "requests";
+  const activeTab: "calendar" | "timesheet" | "requests" = (() => {
+    const tabParam = searchParams.get("tab");
+    if (location.pathname.startsWith("/timesheet") || tabParam === "timesheet") {
+      return "timesheet";
+    }
+    if (location.pathname.startsWith("/requests") || tabParam === "requests") {
+      return "requests";
+    }
+    return "calendar";
+  })();
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -212,10 +220,14 @@ export default function Attendance() {
   const [reviewingId, setReviewingId] = useState<number | null>(null);
 
   function setTab(tab: "calendar" | "timesheet" | "requests") {
-    const next = new URLSearchParams(searchParams);
-    if (tab === "calendar") next.delete("tab");
-    else next.set("tab", tab);
-    setSearchParams(next, { replace: true });
+    if (tab === "timesheet") {
+      navigate("/timesheet");
+    } else if (tab === "requests") {
+      navigate("/requests");
+    } else {
+      const emp = searchParams.get("employee");
+      navigate(emp ? `/attendance?employee=${emp}` : "/attendance");
+    }
   }
 
   async function loadCalendar() {
@@ -701,65 +713,38 @@ export default function Attendance() {
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
-            {isAdmin ? "Chấm công & Bảng lương" : "Bảng công & Đơn từ"}
+            {activeTab === "timesheet"
+              ? "Bảng công & Lương tháng"
+              : activeTab === "requests"
+                ? isAdmin
+                  ? "Duyệt đơn từ & Giải trình"
+                  : "Đơn từ của tôi"
+                : isAdmin
+                  ? "Lịch chấm công nhân sự"
+                  : "Bảng công của tôi"}
           </h1>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {activeTab === "timesheet"
+              ? "Tổng hợp ngày công, giờ làm thực tế, tăng ca (OT) và ước tính lương toàn cửa hàng"
+              : activeTab === "requests"
+                ? isAdmin
+                  ? "Xem xét và phê duyệt đơn xin nghỉ phép, giải trình đi trễ/về sớm, quên chấm công"
+                  : "Gửi đơn giải trình chấm công hoặc xin nghỉ phép và theo dõi kết quả phê duyệt"
+                : isAdmin
+                  ? "Tra cứu chi tiết giờ vào/ra, trạng thái ca và điều chỉnh chấm công theo ngày"
+                  : "Theo dõi lịch sử chấm công, giờ làm việc và tăng ca theo tháng"}
+          </p>
         </div>
 
-        {/* NAVIGATION TABS */}
-        <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-1.5 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setTab("calendar")}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
-              activeTab === "calendar"
-                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
-                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
-            }`}
-          >
-            <CalendarDays size={15} />
-            Lịch chấm công
-          </button>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setTab("timesheet")}
-              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
-                activeTab === "timesheet"
-                  ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
-                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
-              }`}
-            >
-              <FileSpreadsheet size={15} />
-              Bảng công &amp; Lương tháng
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setTab("requests")}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
-              activeTab === "requests"
-                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
-                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
-            }`}
-          >
-            <FileText size={15} />
-            {isAdmin ? "Duyệt đơn từ" : "Đơn từ của tôi"}
-            {pendingCount > 0 && (
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                  activeTab === "requests"
-                    ? "bg-white text-sky-700"
-                    : "bg-sky-100 text-sky-800"
-                }`}
-              >
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        </div>
+        {activeTab === "requests" && pendingCount > 0 && (
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+            <Clock3 size={14} />
+            {pendingCount} đơn đang chờ duyệt
+          </span>
+        )}
       </header>
 
       {requestFeedback && (

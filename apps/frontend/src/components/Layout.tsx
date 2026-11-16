@@ -10,6 +10,8 @@ import {
   CalendarDays,
   Clock3,
   Coffee,
+  FileSpreadsheet,
+  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -59,17 +61,28 @@ export default function Layout() {
   const role = user.role || "EMPLOYEE";
   const avatar = username.charAt(0).toUpperCase();
 
+  const searchParams = new URLSearchParams(location.search);
+  const currentTab = searchParams.get("tab");
+
   const isDashboardActive = location.pathname === "/dashboard";
   const isRecognitionActive = location.pathname === "/recognition";
   const isEmployeesActive =
     location.pathname.startsWith("/employees") &&
     !location.pathname.endsWith("/schedule");
-  const isAttendanceActive = location.pathname.startsWith("/attendance");
+  const isTimesheetActive =
+    location.pathname.startsWith("/timesheet") ||
+    (location.pathname.startsWith("/attendance") && currentTab === "timesheet");
+  const isRequestsActive =
+    location.pathname.startsWith("/requests") ||
+    (location.pathname.startsWith("/attendance") && currentTab === "requests");
+  const isAttendanceActive =
+    location.pathname.startsWith("/attendance") &&
+    !isTimesheetActive &&
+    !isRequestsActive;
   const isUsersActive = location.pathname.startsWith("/users");
   const isShiftsActive =
     location.pathname.startsWith("/shifts") ||
-    (location.pathname.startsWith("/schedules") &&
-      new URLSearchParams(location.search).get("tab") === "shifts");
+    (location.pathname.startsWith("/schedules") && currentTab === "shifts");
   const isSchedulesActive =
     location.pathname.startsWith("/schedules") && !isShiftsActive;
   const isMyScheduleActive =
@@ -161,59 +174,89 @@ export default function Layout() {
           </div>
 
           {role === "ADMIN" ? (
-            <div className="space-y-1">
-              <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                Quản lý Nhân sự &amp; Ca
+            <>
+              <div className="space-y-1">
+                <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Nhân sự &amp; Lịch ca
+                </div>
+                <Link
+                  to="/employees"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isEmployeesActive)}
+                >
+                  <UsersRound size={17} strokeWidth={2} />
+                  <span>Nhân sự &amp; Quầy</span>
+                </Link>
+
+                <Link
+                  to="/shifts"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isShiftsActive)}
+                >
+                  <Clock3 size={17} strokeWidth={2} />
+                  <span>Ca làm việc</span>
+                </Link>
+
+                <Link
+                  to="/schedules"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isSchedulesActive)}
+                >
+                  <CalendarDays size={17} strokeWidth={2} />
+                  <span>Lịch phân ca tuần</span>
+                </Link>
               </div>
-              <Link
-                to="/employees"
-                onClick={closeMobileMenu}
-                className={navItemClass(isEmployeesActive)}
-              >
-                <UsersRound size={17} strokeWidth={2} />
-                <span>Nhân sự &amp; Quầy</span>
-              </Link>
 
-              <Link
-                to="/shifts"
-                onClick={closeMobileMenu}
-                className={navItemClass(isShiftsActive)}
-              >
-                <Clock3 size={17} strokeWidth={2} />
-                <span>Ca làm việc</span>
-              </Link>
+              <div className="space-y-1">
+                <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Chấm công, Lương &amp; Đơn từ
+                </div>
+                <Link
+                  to="/attendance"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isAttendanceActive)}
+                >
+                  <CalendarCheck2 size={17} strokeWidth={2} />
+                  <span>Lịch chấm công</span>
+                </Link>
 
-              <Link
-                to="/schedules"
-                onClick={closeMobileMenu}
-                className={navItemClass(isSchedulesActive)}
-              >
-                <CalendarDays size={17} strokeWidth={2} />
-                <span>Lịch phân ca tuần</span>
-              </Link>
+                <Link
+                  to="/timesheet"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isTimesheetActive)}
+                >
+                  <FileSpreadsheet size={17} strokeWidth={2} />
+                  <span>Bảng công &amp; Lương</span>
+                </Link>
 
-              <Link
-                to="/attendance"
-                onClick={closeMobileMenu}
-                className={navItemClass(isAttendanceActive)}
-              >
-                <CalendarCheck2 size={17} strokeWidth={2} />
-                <span>Bảng công &amp; Lương</span>
-              </Link>
+                <Link
+                  to="/requests"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isRequestsActive)}
+                >
+                  <FileText size={17} strokeWidth={2} />
+                  <span>Duyệt đơn từ</span>
+                </Link>
+              </div>
 
-              <Link
-                to="/users"
-                onClick={closeMobileMenu}
-                className={navItemClass(isUsersActive)}
-              >
-                <ShieldCheck size={17} strokeWidth={2} />
-                <span>Tài khoản hệ thống</span>
-              </Link>
-            </div>
+              <div className="space-y-1">
+                <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Hệ thống
+                </div>
+                <Link
+                  to="/users"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isUsersActive)}
+                >
+                  <ShieldCheck size={17} strokeWidth={2} />
+                  <span>Tài khoản hệ thống</span>
+                </Link>
+              </div>
+            </>
           ) : (
             <div className="space-y-1">
               <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                Cá nhân
+                Cá nhân &amp; Chấm công
               </div>
               <Link
                 to="/my-schedule"
@@ -230,7 +273,16 @@ export default function Layout() {
                 className={navItemClass(isAttendanceActive)}
               >
                 <CalendarCheck2 size={17} strokeWidth={2} />
-                <span>Bảng công &amp; Đơn từ</span>
+                <span>Bảng công của tôi</span>
+              </Link>
+
+              <Link
+                to="/requests"
+                onClick={closeMobileMenu}
+                className={navItemClass(isRequestsActive)}
+              >
+                <FileText size={17} strokeWidth={2} />
+                <span>Đơn từ của tôi</span>
               </Link>
             </div>
           )}

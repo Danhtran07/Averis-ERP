@@ -51,11 +51,11 @@ def record_recognition_attendance(
     now: datetime | None = None,
 ) -> Attendance:
     if not recognition.matched:
-        raise RecognitionRejectedError("Face was not recognized", 422)
+        raise RecognitionRejectedError("Không nhận diện được khuôn mặt nhân viên", 422)
     if not recognition.liveness:
-        raise RecognitionRejectedError("Liveness validation failed", 422)
+        raise RecognitionRejectedError("Xác thực thực thể sống không thành công (nghi ngờ giả mạo)", 422)
     if recognition.employee_id is None:
-        raise RecognitionRejectedError("Recognition did not identify an employee", 422)
+        raise RecognitionRejectedError("Không xác định được danh tính nhân viên", 422)
 
     employee = (
         db.query(Employee)
@@ -63,7 +63,7 @@ def record_recognition_attendance(
         .first()
     )
     if employee is None:
-        raise RecognitionRejectedError("Employee not found", 404)
+        raise RecognitionRejectedError("Không tìm thấy nhân viên trong hệ thống", 404)
 
     server_now = now or datetime.now(timezone.utc)
     local_now = to_vietnam_time(server_now)
@@ -130,7 +130,7 @@ def record_recognition_attendance(
                     int((MIN_CHECKOUT_COOLDOWN_MINUTES * 60 - elapsed_seconds + 59) // 60),
                 )
                 raise RecognitionRejectedError(
-                    f"Đã ghi nhận vào ca cho {employee.full_name} ({int(elapsed_seconds)}s trước). Khóa chống quét trùng 2 phút đang bật — vui lòng đợi {remaining_seconds}s nữa nếu muốn ra ca (Please wait at least {remaining_mins} minute(s) after check-in before checking out).",
+                    f"Đã ghi nhận vào ca cho {employee.full_name} ({int(elapsed_seconds)}s trước). Khóa chống quét trùng 2 phút đang bật — vui lòng đợi {remaining_seconds}s nữa nếu muốn ra ca (Vui lòng đợi ít nhất {remaining_mins} phút / Please wait at least {remaining_mins} minute(s)).",
                     409,
                 )
         attendance.check_out = server_now
@@ -157,7 +157,7 @@ def record_recognition_attendance(
             server_now,
         )
     else:
-        raise RecognitionRejectedError("Attendance already completed for today", 409)
+        raise RecognitionRejectedError("Nhân viên đã hoàn thành chấm công (đã có cả vào ca và ra ca) trong ngày hôm nay", 409)
 
     try:
         db.commit()

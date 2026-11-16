@@ -296,7 +296,7 @@ def recognize_attendance(
     if not image_bytes or not (image.content_type or "").startswith("image/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A valid image file is required",
+            detail="Cần cung cấp tệp hình ảnh khuôn mặt hợp lệ",
         )
     aux_image_bytes = aux_image.file.read() if aux_image is not None else None
 
@@ -340,34 +340,34 @@ def recognize_attendance(
                 liveness_session_id=liveness_session_id,
             )
     except AIServiceTimeoutError as exc:
-        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="Dịch vụ AI phản hồi quá thời gian chờ. Vui lòng thử lại.") from exc
     except AIServiceUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Dịch vụ AI hiện không khả dụng. Vui lòng kiểm tra lại dịch vụ AI.") from exc
     except AIServiceResponseError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Dịch vụ AI phản hồi dữ liệu không hợp lệ.") from exc
     except AIServiceRejectedError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     if recognition.error_code == "NO_FACE":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No face detected")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Không phát hiện khuôn mặt trong khung hình")
     if recognition.error_code == "FACE_TOO_SMALL":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Face is too far from the camera")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Khuôn mặt ở quá xa camera, vui lòng lại gần hơn")
     if recognition.error_code == "MULTIPLE_FACES":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Multiple faces detected")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Phát hiện nhiều khuôn mặt trong khung hình, vui lòng chỉ đứng một mình")
     if recognition.error_code == "FACE_NOT_RECOGNIZED":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Face was not recognized")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Không nhận diện được khuôn mặt nhân viên")
     if recognition.error_code == "AMBIGUOUS_MATCH":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Multiple employees have similarly matching faces",
+            detail="Khuôn mặt trùng khớp với nhiều nhân viên khác nhau",
         )
     if recognition.error_code == "LOW_LIGHT":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Lighting is insufficient for fast attendance",
+            detail="Ánh sáng quá yếu, vui lòng đứng ở nơi đủ sáng",
         )
     if not recognition.liveness:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Liveness validation failed")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Xác thực thực thể sống không thành công (nghi ngờ giả mạo)")
 
     if (
         store_profile is not None
@@ -376,7 +376,7 @@ def recognize_attendance(
     ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Face similarity ({recognition.confidence * 100:.1f}%) is below store security threshold ({store_profile.min_face_similarity * 100:.0f}%)",
+            detail=f"Độ khớp khuôn mặt ({recognition.confidence * 100:.1f}%) chưa đạt ngưỡng bảo mật của cửa hàng ({store_profile.min_face_similarity * 100:.0f}%)",
         )
 
     try:

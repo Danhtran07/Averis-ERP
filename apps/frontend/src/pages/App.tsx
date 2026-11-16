@@ -267,13 +267,16 @@ export default function App() {
       const isCooldownError =
         message.includes("Khóa chống quét trùng") ||
         message.includes("wait at least") ||
-        message.includes("already completed");
+        message.includes("already completed") ||
+        message.includes("đã hoàn thành chấm công");
 
       // If auto-capture fired before the user's face was clearly in frame, keep camera open and retry smoothly!
       const isTransientFacePosition =
         !isManual &&
         (message.includes("No face detected") ||
+          message.includes("Không phát hiện") ||
           message.includes("too far") ||
+          message.includes("quá xa") ||
           message.includes("quá nhỏ") ||
           message.includes("chưa sẵn sàng"));
 
@@ -291,7 +294,7 @@ export default function App() {
       if (isCooldownError) {
         playKioskAlertTone("cooldown", soundEnabled);
         setCooldownMessage(
-          message.split(" (Please wait")[0] ||
+          message.split(" (Please wait")[0].split(" (Vui lòng đợi")[0] ||
             "Bạn vừa chấm công chưa đầy 2 phút trước. Hệ thống đã khóa chống quét đúp."
         );
         setState("cooldown");

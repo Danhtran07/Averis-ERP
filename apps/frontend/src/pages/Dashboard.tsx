@@ -478,7 +478,7 @@ export default function Dashboard() {
                   Nhân sự theo Vị trí / Quầy hôm nay
                 </h2>
                 <Link
-                  to="/attendance?tab=timesheet"
+                  to="/timesheet"
                   className="text-xs font-semibold text-indigo-600 no-underline hover:text-indigo-800"
                 >
                   Bảng lương giờ →

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, CheckCircle2, Clock3, MoonStar, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import ErrorState from "../components/ErrorState";
 import LoadingState from "../components/LoadingState";
@@ -39,9 +39,16 @@ function isWorkConfigTab(value: string | null): value is WorkConfigTab {
 }
 
 export default function Schedules() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const tab: WorkConfigTab = isWorkConfigTab(rawTab) ? rawTab : "schedules";
+  const tab: WorkConfigTab =
+    location.pathname.startsWith("/shifts") || rawTab === "shifts"
+      ? "shifts"
+      : isWorkConfigTab(rawTab)
+        ? rawTab
+        : "schedules";
 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
@@ -157,7 +164,7 @@ export default function Schedules() {
   );
 
   function setTab(next: WorkConfigTab) {
-    setSearchParams(next === "schedules" ? {} : { tab: next }, { replace: true });
+    navigate(next === "shifts" ? "/shifts" : "/schedules");
   }
 
   function selectTemplate(value: ShiftTemplateId) {
@@ -289,35 +296,16 @@ export default function Schedules() {
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
-            Ca làm việc &amp; Lịch tuần
+            {tab === "shifts" ? "Quản lý Ca làm việc" : "Lịch phân ca tuần"}
           </h1>
-        </div>
-        <div className="inline-flex rounded-md border border-slate-200 bg-white p-1">
-          <button
-            type="button"
-            onClick={() => setTab("shifts")}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-              tab === "shifts"
-                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
-                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
-            }`}
-          >
-            Ca làm việc
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("schedules")}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-              tab === "schedules"
-                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-sm shadow-sky-600/20"
-                : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
-            }`}
-          >
-            Lịch tuần
-          </button>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {tab === "shifts"
+              ? "Thiết lập danh mục ca làm việc, giờ bắt đầu, giờ kết thúc và dung sai chấm công"
+              : "Cấu hình lịch làm việc 7 ngày trong tuần và phân công ca cho nhân sự"}
+          </p>
         </div>
       </header>
 

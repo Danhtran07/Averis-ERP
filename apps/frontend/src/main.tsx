@@ -38,6 +38,15 @@ createRoot(
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/attendance" element={<Attendance />} />
+            <Route
+              path="/timesheet"
+              element={
+                <AdminRoute>
+                  <Attendance />
+                </AdminRoute>
+              }
+            />
+            <Route path="/requests" element={<Attendance />} />
             <Route path="/my-schedule" element={<EmployeeSchedule />} />
             <Route path="/employees/:employeeId/schedule" element={<AdminRoute><EmployeeSchedule /></AdminRoute>} />
             <Route path="/profile" element={<Profile />} />
@@ -45,7 +54,7 @@ createRoot(
               path="/shifts"
               element={
                 <AdminRoute>
-                  <Navigate to="/schedules?tab=shifts" replace />
+                  <Schedules />
                 </AdminRoute>
               }
             />
