@@ -1133,10 +1133,16 @@ def update_attendance(
             )
         attendance.check_out = update_data["check_out"]
 
+    shift = attendance.shift
+    if shift is None:
+        shift = resolve_shift(db, attendance.employee_id, attendance.date)
+        if shift is not None:
+            attendance.shift_id = shift.id
+
     metrics = calculate_attendance_metrics(
         attendance.check_in,
         attendance.check_out,
-        attendance.shift,
+        shift,
     )
     attendance.late_minutes = metrics.late_minutes
     attendance.early_leave_minutes = metrics.early_leave_minutes

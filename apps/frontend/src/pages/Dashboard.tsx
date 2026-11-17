@@ -179,12 +179,14 @@ export default function Dashboard() {
         total: number;
         checkedIn: number;
         late: number;
+        absent: number;
         members: {
           id: number;
           name: string;
           code: string;
           isCheckedIn: boolean;
           isLate: boolean;
+          isAbsent: boolean;
         }[];
       }
     >();
@@ -199,6 +201,7 @@ export default function Dashboard() {
         total: 0,
         checkedIn: 0,
         late: 0,
+        absent: 0,
         members: [],
       };
       current.total += 1;
@@ -207,9 +210,11 @@ export default function Dashboard() {
         att && (att.status === "PRESENT" || att.status === "LATE")
       );
       const isLate = Boolean(att && att.status === "LATE");
+      const isAbsent = Boolean(att && att.status === "ABSENT");
 
       if (isCheckedIn) current.checkedIn += 1;
       if (isLate) current.late += 1;
+      if (isAbsent) current.absent += 1;
 
       current.members.push({
         id: emp.id,
@@ -217,6 +222,7 @@ export default function Dashboard() {
         code: emp.employee_code,
         isCheckedIn,
         isLate,
+        isAbsent,
       });
 
       groups.set(groupName, current);
@@ -565,7 +571,9 @@ export default function Dashboard() {
                                 <span
                                   key={m.id}
                                   className={
-                                    m.isLate
+                                    m.isAbsent
+                                      ? "font-medium text-rose-600"
+                                      : m.isLate
                                       ? "font-medium text-amber-700"
                                       : m.isCheckedIn
                                       ? "text-slate-700"
@@ -573,23 +581,42 @@ export default function Dashboard() {
                                   }
                                 >
                                   {m.name}
-                                  {m.isLate && " (trễ)"}
+                                  {m.isAbsent
+                                    ? " (vắng)"
+                                    : m.isLate
+                                    ? " (trễ)"
+                                    : ""}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="border border-slate-200 py-3 px-3.5 text-right">
-                            {dept.late > 0 ? (
-                              <span className="font-medium text-amber-700">
-                                {dept.late} trễ ca
+                          <td className="border border-slate-200 py-3 px-3.5 text-right text-xs">
+                            {dept.absent > 0 ? (
+                              <span className="font-medium text-rose-600">
+                                {dept.absent} vắng mặt
                               </span>
                             ) : isFull ? (
-                              <span className="font-medium text-sky-700">
-                                Đủ ca
+                              dept.late > 0 ? (
+                                <span className="font-medium text-amber-700">
+                                  {dept.late} trễ ca
+                                </span>
+                              ) : (
+                                <span className="font-medium text-sky-700">
+                                  Đủ ca
+                                </span>
+                              )
+                            ) : dept.checkedIn === 0 ? (
+                              <span className="text-slate-400">
+                                Chưa vào ca
                               </span>
                             ) : (
-                              <span className="text-slate-400">
-                                Vắng {dept.total - dept.checkedIn}
+                              <span className="text-slate-500">
+                                {dept.late > 0 && (
+                                  <span className="mr-1.5 font-medium text-amber-700">
+                                    {dept.late} trễ ·
+                                  </span>
+                                )}
+                                {dept.total - dept.checkedIn} chưa vào ca
                               </span>
                             )}
                           </td>

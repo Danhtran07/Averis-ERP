@@ -196,15 +196,6 @@ export default function Layout() {
                 </Link>
 
                 <Link
-                  to="/salaries"
-                  onClick={closeMobileMenu}
-                  className={navItemClass(isSalariesActive)}
-                >
-                  <Banknote size={17} strokeWidth={2} />
-                  <span>Chính sách lương</span>
-                </Link>
-
-                <Link
                   to="/shifts"
                   onClick={closeMobileMenu}
                   className={navItemClass(isShiftsActive)}
@@ -252,6 +243,15 @@ export default function Layout() {
                 >
                   <FileSpreadsheet size={17} strokeWidth={2} />
                   <span>Bảng công &amp; Lương</span>
+                </Link>
+
+                <Link
+                  to="/salaries"
+                  onClick={closeMobileMenu}
+                  className={navItemClass(isSalariesActive)}
+                >
+                  <Banknote size={17} strokeWidth={2} />
+                  <span>Chính sách lương</span>
                 </Link>
 
                 <Link

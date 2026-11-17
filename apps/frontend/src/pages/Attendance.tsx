@@ -72,10 +72,50 @@ function todayIso() {
 function formatClock(value: string | null) {
   return value
     ? new Date(value).toLocaleTimeString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
       })
     : "-";
+}
+
+function formatToDateTimeLocalInput(value: string | null | undefined): string {
+  if (!value) return "";
+  if (value.includes("+07:00")) {
+    return value.slice(0, 16);
+  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) {
+    return value.slice(0, 16);
+  }
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(d);
+  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  return `${getPart("year")}-${getPart("month")}-${getPart("day")}T${getPart("hour")}:${getPart("minute")}`;
+}
+
+function formatDateTimeLocalForApi(value: string | null | undefined): string | null {
+  if (!value || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (trimmed.includes("Z") || (trimmed.length > 19 && (trimmed.includes("+") || trimmed.slice(10).includes("-")))) {
+    return trimmed;
+  }
+  if (trimmed.length === 16) {
+    return `${trimmed}:00+07:00`;
+  }
+  if (trimmed.length === 19) {
+    return `${trimmed}+07:00`;
+  }
+  return trimmed;
 }
 
 function formatShiftTime(value: string) {
@@ -477,8 +517,8 @@ export default function Attendance() {
     setEditingDay(day);
     setForm({
       date: day.date,
-      check_in: day.check_in ? day.check_in.slice(0, 16) : "",
-      check_out: day.check_out ? day.check_out.slice(0, 16) : "",
+      check_in: formatToDateTimeLocalInput(day.check_in),
+      check_out: formatToDateTimeLocalInput(day.check_out),
       status: day.has_record ? day.status : "PRESENT",
     });
     setError("");
@@ -1060,18 +1100,20 @@ export default function Attendance() {
     if (!employeeId) return;
     try {
       setSaving(true);
+      const payloadCheckIn = formatDateTimeLocalForApi(form.check_in);
+      const payloadCheckOut = formatDateTimeLocalForApi(form.check_out);
       if (editingDay?.attendance_id) {
         await updateAttendance(editingDay.attendance_id, {
-          check_in: form.check_in || null,
-          check_out: form.check_out || null,
+          check_in: payloadCheckIn,
+          check_out: payloadCheckOut,
           status: form.status,
         });
       } else {
         await createAttendance({
           employee_id: Number(employeeId),
           date: form.date,
-          check_in: form.check_in || null,
-          check_out: form.check_out || null,
+          check_in: payloadCheckIn,
+          check_out: payloadCheckOut,
           status: form.status,
         });
       }
@@ -1112,11 +1154,11 @@ export default function Attendance() {
         requested_check_in:
           requestForm.request_type === "LEAVE"
             ? null
-            : requestForm.requested_check_in || null,
+            : formatDateTimeLocalForApi(requestForm.requested_check_in),
         requested_check_out:
           requestForm.request_type === "LEAVE"
             ? null
-            : requestForm.requested_check_out || null,
+            : formatDateTimeLocalForApi(requestForm.requested_check_out),
       });
       setShowRequestModal(false);
       setRequestFeedback("Đơn giải trình / nghỉ phép của bạn đã được gửi tới Quản trị viên.");
